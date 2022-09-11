@@ -23,7 +23,7 @@ type Instances map[InstanceID]Databases
 // EnumerateCloudSQLDatabaseInstances enumerates Cloud SQL database instances in the given project.
 func EnumerateCloudSQLDatabaseInstances(ctx context.Context, sqlAdminSvc *sqladmin.Service, projectID, instanceID string) (Instances, error) {
 	log.Printf("Enumerating Cloud SQL instances in project %s", projectID)
-	
+
 	instances := Instances{}
 
 	enumerated := []string{}
@@ -87,8 +87,7 @@ func AddRoleBindingToGCSBucket(ctx context.Context, storageSvc *storage.Service,
 		}
 	}
 
-	// Update the policy
-	policy, err = storageSvc.Buckets.SetIamPolicy(bucketName, policy).Do()
+	_, err = storageSvc.Buckets.SetIamPolicy(bucketName, policy).Do()
 	if err != nil {
 		return err
 	}
