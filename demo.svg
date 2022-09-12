@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" id="terminal" baseProfile="full" viewBox="0 0 1120 342" width="1120" version="1.1">
+    <defs>
+        <termtosvg:template_settings xmlns:termtosvg="https://github.com/nbedos/termtosvg">
+            <termtosvg:screen_geometry columns="140" rows="20"/>
+            <termtosvg:animation type="css"/>
+        </termtosvg:template_settings>
+        <style type="text/css" id="generated-style"><![CDATA[#screen {
+                font-family: 'DejaVu Sans Mono', monospace;
+                font-style: normal;
+                font-size: 14px;
+            }
+
+        text {
+            dominant-baseline: text-before-edge;
+            white-space: pre;
+        }
+    
+            :root {
+                --animation-duration: 13950ms;
+            }
+
+            @keyframes roll {
+                0.000%{transform:translateY(0px)}
+0.516%{transform:translateY(-374px)}
+0.523%{transform:translateY(-748px)}
+4.358%{transform:translateY(-1122px)}
+20.208%{transform:translateY(-1496px)}
+20.237%{transform:translateY(-1870px)}
+20.337%{transform:translateY(-2244px)}
+25.427%{transform:translateY(-2618px)}
+28.323%{transform:translateY(-2992px)}
+31.262%{transform:translateY(-3366px)}
+33.627%{transform:translateY(-3740px)}
+35.054%{transform:translateY(-4114px)}
+56.559%{transform:translateY(-4488px)}
+56.652%{transform:translateY(-4862px)}
+56.961%{transform:translateY(-5236px)}
+56.989%{transform:translateY(-5610px)}
+78.495%{transform:translateY(-5984px)}
+100.000%{transform:translateY(-5984px)}
+            }
+
+            #screen_view {
+                animation-duration: 13950ms;
+                animation-iteration-count:infinite;
+                animation-name:roll;
+                animation-timing-function: steps(1,end);
+                animation-fill-mode: forwards;
+            }
+        ]]></style>
+        <style type="text/css" id="user-style">
+            /* The colors defined below are the default 16 colors used for rendering text of the terminal. Adjust
+               them as needed.
+               PowerShell colors based on https://en.wikipedia.org/wiki/ANSI_escape_code#Colors */
+            .foreground {fill: #cccccc;}
+            .background {fill: #0c0c0c;}
+            .color0 {fill: #0c0c0c;}
+            .color1 {fill: #c50f1f;}
+            .color2 {fill: #13a10e;}
+            .color3 {fill: #c19c00;}
+            .color4 {fill: #0037da;}
+            .color5 {fill: #881798;}
+            .color6 {fill: #3a96dd;}
+            .color7 {fill: #cccccc;}
+            .color8 {fill: #767676;}
+            .color9 {fill: #e74856;}
+            .color10 {fill: #16c60c;}
+            .color11 {fill: #f9f1a5;}
+            .color12 {fill: #3b78ff;}
+            .color13 {fill: #b4009e;}
+            .color14 {fill: #61d6d6;}
+            .color15 {fill: #f2f2f2;}
+        </style>
+    </defs>
+    <svg id="screen" width="1120" height="340" viewBox="0 0 1120 340" preserveAspectRatio="xMidYMin slice">
+    <rect class="background" height="100%" width="100%" x="0" y="0"/><defs><g id="g1"><text x="0" textLength="8" class="background"> </text><text x="8" textLength="1112" class="foreground">                                                                                                                                           </text></g><g id="g2"><text x="0" textLength="24" font-weight="bold" class="color10">&#10140;  </text><text x="24" textLength="136" font-weight="bold" class="color14">cloudsql-exporter</text><text x="160" textLength="8" class="foreground"> </text><text x="168" textLength="40" font-weight="bold" class="color12">git:(</text><text x="208" textLength="32" font-weight="bold" class="color9">main</text><text x="240" textLength="16" font-weight="bold" class="color12">) </text><text x="256" textLength="8" font-weight="bold" class="color11">&#10007;</text><text x="264" textLength="8" class="foreground"> </text><text x="272" textLength="8" class="background"> </text><text x="280" textLength="840" class="foreground">                                                                                                         </text></g><g id="g3"><text x="0" textLength="24" font-weight="bold" class="color10">&#10140;  </text><text x="24" textLength="136" font-weight="bold" class="color14">cloudsql-exporter</text><text x="160" textLength="8" class="foreground"> </text><text x="168" textLength="40" font-weight="bold" class="color12">git:(</text><text x="208" textLength="32" font-weight="bold" class="color9">main</text><text x="240" textLength="16" font-weight="bold" class="color12">) </text><text x="256" textLength="8" font-weight="bold" class="color11">&#10007;</text><text x="264" textLength="8" class="foreground"> </text><text x="272" textLength="848" class="background">cloudsql-exporter --bucket thog-prod-cloudsql-backups --project public-event-monitoring-prod  --ensure-iam</text></g><g id="g4"><text x="0" textLength="80" class="background">-bindings </text><text x="80" textLength="1040" class="foreground">                                                                                                                                  </text></g><g id="g5"><text x="0" textLength="24" font-weight="bold" class="color10">&#10140;  </text><text x="24" textLength="136" font-weight="bold" class="color14">cloudsql-exporter</text><text x="160" textLength="8" class="foreground"> </text><text x="168" textLength="40" font-weight="bold" class="color12">git:(</text><text x="208" textLength="32" font-weight="bold" class="color9">main</text><text x="240" textLength="16" font-weight="bold" class="color12">) </text><text x="256" textLength="8" font-weight="bold" class="color11">&#10007;</text><text x="264" textLength="856" class="foreground"> cloudsql-exporter --bucket thog-prod-cloudsql-backups --project public-event-monitoring-prod  --ensure-iam</text></g><g id="g6"><text x="0" textLength="1120" class="foreground">-bindings                                                                                                                                   </text></g><g id="g7"><text x="0" textLength="8" class="background"> </text></g><g id="g8"><text x="0" textLength="728" class="foreground">2022/09/12 04:27:17 Enumerating Cloud SQL instances in project public-event-monitoring-prod</text></g><g id="g9"><text x="0" textLength="464" class="foreground">2022/09/12 04:27:18 Found instance public-event-monitoring</text></g><g id="g10"><text x="0" textLength="640" class="foreground">2022/09/12 04:27:18 Found database postgres for instance public-event-monitoring</text></g><g id="g11"><text x="0" textLength="584" class="foreground">2022/09/12 04:27:18 Exporting backup for instance public-event-monitoring</text></g><g id="g12"><text x="0" textLength="1120" class="foreground">2022/09/12 04:27:19 Ensuring role roles/storage.objectCreator to bucket thog-prod-cloudsql-backups for service account p1033154858811-piv4tn</text></g><g id="g13"><text x="0" textLength="656" class="foreground">@gcp-sa-cloud-sql.iam.gserviceaccount.com used by instance public-event-monitoring</text></g><g id="g14"><text x="0" textLength="1120" class="foreground">2022/09/12 04:27:19 Role roles/storage.objectCreator already exists for service account p1033154858811-piv4tn@gcp-sa-cloud-sql.iam.gservicea</text></g><g id="g15"><text x="0" textLength="80" class="foreground">ccount.com</text></g><g id="g16"><text x="0" textLength="1120" class="foreground">2022/09/12 04:27:19 Ensuring role roles/storage.objectViewer to bucket thog-prod-cloudsql-backups for service account p1033154858811-piv4tn@</text></g><g id="g17"><text x="0" textLength="648" class="foreground">gcp-sa-cloud-sql.iam.gserviceaccount.com used by instance public-event-monitoring</text></g><g id="g18"><text x="0" textLength="1120" class="foreground">2022/09/12 04:27:19 Role roles/storage.objectViewer already exists for service account p1033154858811-piv4tn@gcp-sa-cloud-sql.iam.gserviceac</text></g><g id="g19"><text x="0" textLength="72" class="foreground">count.com</text></g><g id="g20"><text x="0" textLength="672" class="foreground">2022/09/12 04:27:19 Exporting database postgres for instance public-event-monitoring</text></g><g id="g21"><text x="0" textLength="280" class="foreground">2022/09/12 04:28:11 Backup complete</text></g><g id="g22"><text x="0" textLength="24" font-weight="bold" class="color10">&#10140;  </text><text x="24" textLength="136" font-weight="bold" class="color14">cloudsql-exporter</text><text x="160" textLength="8" class="foreground"> </text><text x="168" textLength="40" font-weight="bold" class="color12">git:(</text><text x="208" textLength="32" font-weight="bold" class="color9">main</text><text x="240" textLength="16" font-weight="bold" class="color12">) </text><text x="256" textLength="8" font-weight="bold" class="color11">&#10007;</text><text x="264" textLength="856" class="foreground">                                                                                                           </text></g></defs><g id="screen_view"><g><rect x="0" y="0" width="8" height="17" class="foreground"/><use xlink:href="#g1" y="0"/></g><g><rect x="272" y="374" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="374"/></g><g><rect x="272" y="748" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="748"/></g><g><rect x="272" y="1122" width="848" height="17" class="foreground"/><use xlink:href="#g3" y="1122"/><rect x="0" y="1139" width="80" height="17" class="foreground"/><use xlink:href="#g4" y="1139"/></g><g><use xlink:href="#g5" y="1496"/><use xlink:href="#g6" y="1513"/><rect x="0" y="1530" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="1530"/></g><g><use xlink:href="#g5" y="1870"/><use xlink:href="#g6" y="1887"/><rect x="0" y="1904" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="1904"/></g><g><use xlink:href="#g5" y="2244"/><use xlink:href="#g6" y="2261"/><use xlink:href="#g8" y="2278"/><rect x="0" y="2295" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="2295"/></g><g><use xlink:href="#g5" y="2618"/><use xlink:href="#g6" y="2635"/><use xlink:href="#g8" y="2652"/><use xlink:href="#g9" y="2669"/><rect x="0" y="2686" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="2686"/></g><g><use xlink:href="#g5" y="2992"/><use xlink:href="#g6" y="3009"/><use xlink:href="#g8" y="3026"/><use xlink:href="#g9" y="3043"/><use xlink:href="#g10" y="3060"/><use xlink:href="#g11" y="3077"/><rect x="0" y="3094" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="3094"/></g><g><use xlink:href="#g5" y="3366"/><use xlink:href="#g6" y="3383"/><use xlink:href="#g8" y="3400"/><use xlink:href="#g9" y="3417"/><use xlink:href="#g10" y="3434"/><use xlink:href="#g11" y="3451"/><use xlink:href="#g12" y="3468"/><use xlink:href="#g13" y="3485"/><rect x="0" y="3502" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="3502"/></g><g><use xlink:href="#g5" y="3740"/><use xlink:href="#g6" y="3757"/><use xlink:href="#g8" y="3774"/><use xlink:href="#g9" y="3791"/><use xlink:href="#g10" y="3808"/><use xlink:href="#g11" y="3825"/><use xlink:href="#g12" y="3842"/><use xlink:href="#g13" y="3859"/><use xlink:href="#g14" y="3876"/><use xlink:href="#g15" y="3893"/><use xlink:href="#g16" y="3910"/><use xlink:href="#g17" y="3927"/><rect x="0" y="3944" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="3944"/></g><g><use xlink:href="#g5" y="4114"/><use xlink:href="#g6" y="4131"/><use xlink:href="#g8" y="4148"/><use xlink:href="#g9" y="4165"/><use xlink:href="#g10" y="4182"/><use xlink:href="#g11" y="4199"/><use xlink:href="#g12" y="4216"/><use xlink:href="#g13" y="4233"/><use xlink:href="#g14" y="4250"/><use xlink:href="#g15" y="4267"/><use xlink:href="#g16" y="4284"/><use xlink:href="#g17" y="4301"/><use xlink:href="#g18" y="4318"/><use xlink:href="#g19" y="4335"/><use xlink:href="#g20" y="4352"/><rect x="0" y="4369" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="4369"/></g><g><use xlink:href="#g5" y="4488"/><use xlink:href="#g6" y="4505"/><use xlink:href="#g8" y="4522"/><use xlink:href="#g9" y="4539"/><use xlink:href="#g10" y="4556"/><use xlink:href="#g11" y="4573"/><use xlink:href="#g12" y="4590"/><use xlink:href="#g13" y="4607"/><use xlink:href="#g14" y="4624"/><use xlink:href="#g15" y="4641"/><use xlink:href="#g16" y="4658"/><use xlink:href="#g17" y="4675"/><use xlink:href="#g18" y="4692"/><use xlink:href="#g19" y="4709"/><use xlink:href="#g20" y="4726"/><use xlink:href="#g21" y="4743"/><rect x="0" y="4760" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="4760"/></g><g><use xlink:href="#g5" y="4862"/><use xlink:href="#g6" y="4879"/><use xlink:href="#g8" y="4896"/><use xlink:href="#g9" y="4913"/><use xlink:href="#g10" y="4930"/><use xlink:href="#g11" y="4947"/><use xlink:href="#g12" y="4964"/><use xlink:href="#g13" y="4981"/><use xlink:href="#g14" y="4998"/><use xlink:href="#g15" y="5015"/><use xlink:href="#g16" y="5032"/><use xlink:href="#g17" y="5049"/><use xlink:href="#g18" y="5066"/><use xlink:href="#g19" y="5083"/><use xlink:href="#g20" y="5100"/><use xlink:href="#g21" y="5117"/><rect x="0" y="5134" width="8" height="17" class="foreground"/><use xlink:href="#g1" y="5134"/></g><g><use xlink:href="#g5" y="5236"/><use xlink:href="#g6" y="5253"/><use xlink:href="#g8" y="5270"/><use xlink:href="#g9" y="5287"/><use xlink:href="#g10" y="5304"/><use xlink:href="#g11" y="5321"/><use xlink:href="#g12" y="5338"/><use xlink:href="#g13" y="5355"/><use xlink:href="#g14" y="5372"/><use xlink:href="#g15" y="5389"/><use xlink:href="#g16" y="5406"/><use xlink:href="#g17" y="5423"/><use xlink:href="#g18" y="5440"/><use xlink:href="#g19" y="5457"/><use xlink:href="#g20" y="5474"/><use xlink:href="#g21" y="5491"/><rect x="272" y="5508" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="5508"/></g><g><use xlink:href="#g5" y="5610"/><use xlink:href="#g6" y="5627"/><use xlink:href="#g8" y="5644"/><use xlink:href="#g9" y="5661"/><use xlink:href="#g10" y="5678"/><use xlink:href="#g11" y="5695"/><use xlink:href="#g12" y="5712"/><use xlink:href="#g13" y="5729"/><use xlink:href="#g14" y="5746"/><use xlink:href="#g15" y="5763"/><use xlink:href="#g16" y="5780"/><use xlink:href="#g17" y="5797"/><use xlink:href="#g18" y="5814"/><use xlink:href="#g19" y="5831"/><use xlink:href="#g20" y="5848"/><use xlink:href="#g21" y="5865"/><rect x="272" y="5882" width="8" height="17" class="foreground"/><use xlink:href="#g2" y="5882"/></g><g><use xlink:href="#g5" y="5984"/><use xlink:href="#g6" y="6001"/><use xlink:href="#g8" y="6018"/><use xlink:href="#g9" y="6035"/><use xlink:href="#g10" y="6052"/><use xlink:href="#g11" y="6069"/><use xlink:href="#g12" y="6086"/><use xlink:href="#g13" y="6103"/><use xlink:href="#g14" y="6120"/><use xlink:href="#g15" y="6137"/><use xlink:href="#g16" y="6154"/><use xlink:href="#g17" y="6171"/><use xlink:href="#g18" y="6188"/><use xlink:href="#g19" y="6205"/><use xlink:href="#g20" y="6222"/><use xlink:href="#g21" y="6239"/><use xlink:href="#g22" y="6256"/><rect x="0" y="6273" width="8" height="17" class="foreground"/><use xlink:href="#g7" y="6273"/></g></g></svg>
+</svg>

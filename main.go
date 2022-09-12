@@ -76,4 +76,6 @@ func main() {
 		}
 	}
 
+	log.Println("Backup complete")
+
 }

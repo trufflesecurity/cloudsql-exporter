@@ -3,6 +3,16 @@
 cloudsql-exporter automatically exports CloudSQL databases in a given project to a GCS bucket.
 It supports automatic enumeration of CloudSQL instances and their databases, and can even ensure the correct IAM role bindings are in place for a successful export.
 
+![Demo](demo.svg)
+
+### Why
+
+CloudSQL includes automatic backup functionality, so why might you want to use this?
+
+CloudSQL backups are tied to the CloudSQL instance. So, if the instance itself gets deleted, so do the backups.
+Similarly if the GCP project were deleted, the instance and the backups would too.
+Exporting your database to a separate Google Cloud Storage bucket, preferrably in another GCP project within another account can provide extra assurance of data retention in these scenarios. Additionally you can have much better control over data retention. It's a good supplement to the built-in backup functionality.
+
 ## Usage
 
 ```bash
