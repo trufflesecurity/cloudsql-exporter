@@ -22,6 +22,7 @@ var (
 	bucket                = app.Flag("bucket", "Google Cloud Storage bucket name").Required().String()
 	project               = app.Flag("project", "GCP project ID").Required().String()
 	instance              = app.Flag("instance", "Cloud SQL instance name, if not specified all within the project will be enumerated").String()
+	compression           = app.Flag("compression", "Enable compression for exported SQL files").Bool()
 	ensureIamBindings     = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
 	ensureIamBindingsTemp = app.Flag("ensure-iam-bindings-temp", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
 )
@@ -71,7 +72,16 @@ func main() {
 			}
 		}
 
-		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, time.Now().Format(time.RFC3339Nano))
+		var objectName string
+
+		if *compression {
+			objectName = time.Now().Format(time.RFC3339Nano) + ".sql.gz"
+		} else {
+			objectName = time.Now().Format(time.RFC3339Nano) + ".sql"
+		}
+
+		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName)
+
 		if err != nil {
 			log.Fatal(err)
 		}
