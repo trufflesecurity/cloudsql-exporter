@@ -1,4 +1,4 @@
-module github.com/trufflesecurity/cloudsql-exporter
+module github.com/fr12k/cloudsql-exporter
 
 go 1.19
 
