@@ -12,8 +12,8 @@ import (
 	"google.golang.org/api/storage/v1"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/trufflesecurity/cloudsql-exporter/pkg/cloudsql"
-	"github.com/trufflesecurity/cloudsql-exporter/pkg/version"
+	"github.com/fr12k/cloudsql-exporter/pkg/cloudsql"
+	"github.com/fr12k/cloudsql-exporter/pkg/version"
 )
 
 var (
