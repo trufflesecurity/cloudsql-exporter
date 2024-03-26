@@ -73,6 +73,7 @@ func AddRoleBindingToGCSBucket(ctx context.Context, storageSvc *storage.Service,
 		return err
 	}
 
+	roleExists := false
 	for i, binding := range policy.Bindings {
 		if binding.Role == role {
 			for _, member := range binding.Members {
@@ -83,6 +84,50 @@ func AddRoleBindingToGCSBucket(ctx context.Context, storageSvc *storage.Service,
 			}
 			binding.Members = append(binding.Members, svcAcctMember)
 			policy.Bindings[i] = binding
+			roleExists = true
+			break
+		}
+	}
+
+	if !roleExists {
+		policy.Bindings = append(policy.Bindings, &storage.PolicyBindings{
+			Role:    role,
+			Members: []string{svcAcctMember},
+		})
+	}
+
+	_, err = storageSvc.Buckets.SetIamPolicy(bucketName, policy).Do()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RemoveRoleBindingToGCSBucket remove a role binding to a GCS bucket.
+func RemoveRoleBindingToGCSBucket(ctx context.Context, storageSvc *storage.Service, projectID, bucketName, role, sqlAdminSvcAccount, instance string) error {
+	log.Printf("Deleting role %s to bucket %s for service account %s used by instance %s", role, bucketName, sqlAdminSvcAccount, instance)
+
+	svcAcctMember := fmt.Sprintf("serviceAccount:%s", sqlAdminSvcAccount)
+
+	policy, err := storageSvc.Buckets.GetIamPolicy(bucketName).Do()
+	if err != nil {
+		return err
+	}
+
+	for i, binding := range policy.Bindings {
+		if binding.Role == role {
+			for j, member := range binding.Members {
+				if member == svcAcctMember {
+					if len(binding.Members) == 1 {
+						binding.Members = []string{}
+					} else {
+						binding.Members = append(binding.Members[:j], binding.Members[j+1:]...)
+					}
+					policy.Bindings[i] = binding
+					break
+				}
+			}
 			break
 		}
 	}

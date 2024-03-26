@@ -19,10 +19,11 @@ import (
 var (
 	app = kingpin.New("cloudsql-backup", "Export Cloud SQL databases to Google Cloud Storage")
 
-	bucket            = app.Flag("bucket", "Google Cloud Storage bucket name").Required().String()
-	project           = app.Flag("project", "GCP project ID").Required().String()
-	instance          = app.Flag("instance", "Cloud SQL instance name, if not specified all within the project will be enumerated").String()
-	ensureIamBindings = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
+	bucket                = app.Flag("bucket", "Google Cloud Storage bucket name").Required().String()
+	project               = app.Flag("project", "GCP project ID").Required().String()
+	instance              = app.Flag("instance", "Cloud SQL instance name, if not specified all within the project will be enumerated").String()
+	ensureIamBindings     = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
+	ensureIamBindingsTemp = app.Flag("ensure-iam-bindings-temp", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
 )
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 	for instance, databases := range instances {
 		log.Printf("Exporting backup for instance %s", instance)
 
-		if *ensureIamBindings {
+		if *ensureIamBindings || *ensureIamBindingsTemp {
 			sqlAdminSvcAccount, err := cloudsql.GetSvcAcctForCloudSQLInstance(ctx, sqlAdminSvc, *project, string(instance), "")
 			if err != nil {
 				log.Fatal(err)
@@ -73,6 +74,21 @@ func main() {
 		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, time.Now().Format(time.RFC3339Nano))
 		if err != nil {
 			log.Fatal(err)
+		}
+
+		if *ensureIamBindingsTemp {
+			sqlAdminSvcAccount, err := cloudsql.GetSvcAcctForCloudSQLInstance(ctx, sqlAdminSvc, *project, string(instance), "")
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, *project, *bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, *project, *bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	}
 
