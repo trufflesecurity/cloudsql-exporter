@@ -126,7 +126,7 @@ func ExportCloudSQLDatabase(ctx context.Context, sqlAdminSvc *sqladmin.Service, 
 				FileType:  "SQL",
 				Kind:      "sql#exportContext",
 				Databases: []string{database},
-				Uri:       fmt.Sprintf("gs://%s/%s/%s/%s/%s.sql", bucketName, projectID, instanceID, database, objectName),
+				Uri:       fmt.Sprintf("gs://%s/%s/%s/%s/%s", bucketName, projectID, instanceID, database, objectName),
 			},
 		}
 
