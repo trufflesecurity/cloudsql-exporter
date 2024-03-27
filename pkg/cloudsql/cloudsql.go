@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/sqladmin/v1"
 	"google.golang.org/api/storage/v1"
 )
@@ -162,33 +164,38 @@ func ListDatabasesForCloudSQLInstance(ctx context.Context, sqlAdminSvc *sqladmin
 }
 
 // ExportCloudSQLDatabase exports a Cloud SQL database to a Google Cloud Storage bucket.
-func ExportCloudSQLDatabase(ctx context.Context, sqlAdminSvc *sqladmin.Service, databases []string, projectID, instanceID, bucketName, objectName string) error {
+func ExportCloudSQLDatabase(ctx context.Context, sqlAdminSvc *sqladmin.Service, databases []string, projectID, instanceID, bucketName, objectName string) ([]string, error) {
+	locations := make([]string, 0)
 	for _, database := range databases {
-		log.Printf("Exporting database %s for instance %s", database, instanceID)
+		objectName := fmt.Sprintf("%s-%s", database ,objectName)
+		//TODO make this configurable
+
+		location := fmt.Sprintf("gs://%s/%s/cloudsql/%s", bucketName, instanceID, objectName)
+
+		locations = append(locations, location)
+		log.Printf("Exporting database %s for instance %s to %s", database, instanceID, location)
 
 		req := &sqladmin.InstancesExportRequest{
 			ExportContext: &sqladmin.ExportContext{
 				FileType:  "SQL",
 				Kind:      "sql#exportContext",
 				Databases: []string{database},
-				//Uri:       fmt.Sprintf("gs://%s/%s/%s/%s/%s.sql", bucketName, projectID, instanceID, database, objectName),
-				//TODO make this configurable
-				Uri: fmt.Sprintf("gs://%s/%s/cloudsql/%s/%s", bucketName, instanceID, database, objectName),
+				Uri: location,
 			},
 		}
 
 		op, err := sqlAdminSvc.Instances.Export(projectID, instanceID, req).Do()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		err = WaitForSQLOperation(ctx, sqlAdminSvc, time.Minute*10, projectID, op)
+		err = WaitForSQLOperation(ctx, sqlAdminSvc, time.Minute*1, projectID, op)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return locations, nil
 }
 
 func WaitForSQLOperation(ctx context.Context, sqlAdminSvc *sqladmin.Service, timeout time.Duration, gcpProject string, op *sqladmin.Operation) error {
@@ -201,7 +208,7 @@ func WaitForSQLOperation(ctx context.Context, sqlAdminSvc *sqladmin.Service, tim
 		case <-ctx.Done():
 			return errors.New("timeout reached")
 		default:
-			time.Sleep(time.Second * 10)
+			time.Sleep(timeout)
 			op, err := sqlAdminSvc.Operations.Get(gcpProject, op.Name).Do()
 			if err != nil {
 				return err
@@ -212,4 +219,118 @@ func WaitForSQLOperation(ctx context.Context, sqlAdminSvc *sqladmin.Service, tim
 		}
 	}
 
+}
+
+func generatePassword(length int) string {
+	// Define the character set
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{},.<>?;:"
+
+	// Seed the random number generator
+	rand.Seed(time.Now().UnixNano())
+
+	// Create a byte slice to store the password characters
+	password := make([]byte, length)
+
+	// Fill the byte slice with random characters from the charset
+	for i := range password {
+			password[i] = charset[rand.Intn(len(charset))]
+	}
+
+	return string(password)
+}
+
+func Validate(ctx context.Context, admin *sqladmin.Service, storageSvc *storage.Service, project string, instance string, bucket string, file string) error {
+    // Define the database instance parameters
+		password := generatePassword(12)
+    dbinstance := &sqladmin.DatabaseInstance{
+				Name:         fmt.Sprintf("restore-%s", instance),
+        InstanceType: "CLOUD_SQL_INSTANCE",
+        Region:       "europe-west3",
+        Settings: &sqladmin.Settings{
+            Tier:             "db-f1-micro", // Change as needed
+            ActivationPolicy: "ALWAYS",
+            DatabaseFlags: []*sqladmin.DatabaseFlags{
+                {Name: "cloudsql.iam_authentication", Value: "on"},
+            },
+						InsightsConfig: &sqladmin.InsightsConfig{
+							QueryInsightsEnabled: true,
+						},
+						UserLabels: map[string]string{
+							"service": fmt.Sprintf("restore-%s", instance),
+						},
+        },
+				RootPassword: password,
+				DatabaseVersion: "POSTGRES_13",
+    }
+
+		db, err := admin.Instances.Get(project, dbinstance.Name).Do()
+		if err != nil && err.(*googleapi.Error).Code != 404 {
+        log.Fatalf("Failed to get PostgreSQL instance: %v", err)
+    }
+
+		if db == nil {
+			// Create the PostgreSQL instance
+			operation, err := admin.Instances.Insert(project, dbinstance).Context(ctx).Do()
+			if err != nil {
+					log.Fatalf("Failed to create PostgreSQL instance: %v", err)
+			}
+
+			// Wait for the operation to complete
+			if err := WaitForSQLOperation(ctx, admin, time.Minute*1, project, operation); err != nil {
+					log.Fatalf("Failed to create PostgreSQL instance: %v", err)
+			}
+
+			fmt.Println("PostgreSQL instance created successfully.")
+		}
+
+		log.Printf("PostgreSQL instance exists %+v.", db)
+
+		sqlAdminSvcAccount, err := GetSvcAcctForCloudSQLInstance(ctx, admin, project, fmt.Sprintf("restore-%s", instance), "")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer func() {
+			err = RemoveRoleBindingToGCSBucket(ctx, storageSvc, project, bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, string(instance))
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = RemoveRoleBindingToGCSBucket(ctx, storageSvc, project, bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
+
+		err = AddRoleBindingToGCSBucket(ctx, storageSvc, project, bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, string(instance))
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = AddRoleBindingToGCSBucket(ctx, storageSvc, project, bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		log.Printf("Import data from %s", file)
+    // Import data from SQL file
+    importReq := &sqladmin.InstancesImportRequest{
+        ImportContext: &sqladmin.ImportContext{
+					  Kind:      "sql#importContext",
+            Database:  "your_database_name",
+            FileType:  "SQL",
+            Uri:       file, // You can also use local file path here
+        },
+    }
+
+    importOp, err := admin.Instances.Import(project, fmt.Sprintf("restore-%s", instance), importReq).Context(ctx).Do()
+    if err != nil {
+        log.Fatalf("Failed to initialize import data: %+v", err)
+    }
+
+    // Wait for the import operation to complete
+    if err := WaitForSQLOperation(ctx, admin, time.Minute*1, project, importOp); err != nil {
+        log.Fatalf("Failed to import data: %+v", err)
+    }
+
+    fmt.Println("Data imported successfully.")
+		return nil
 }
