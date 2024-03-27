@@ -25,6 +25,7 @@ var (
 	compression           = app.Flag("compression", "Enable compression for exported SQL files").Bool()
 	ensureIamBindings     = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
 	ensureIamBindingsTemp = app.Flag("ensure-iam-bindings-temp", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
+	validate              = app.Flag("validate", "Will try to import the exported data into a new created CloudSQL instance").Bool()
 )
 
 func main() {
@@ -62,6 +63,18 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
+			defer func() {
+				if *ensureIamBindingsTemp {
+					err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, *project, *bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
+					if err != nil {
+						log.Fatal(err)
+					}
+					err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, *project, *bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
+			}()
 			err = cloudsql.AddRoleBindingToGCSBucket(ctx, storageSvc, *project, *bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
 			if err != nil {
 				log.Fatal(err)
@@ -75,27 +88,18 @@ func main() {
 		var objectName string
 
 		if *compression {
-			objectName = time.Now().Format(time.RFC3339Nano) + ".sql.gz"
+			objectName = time.Now().Format("20060102T150405") + ".sql.gz"
 		} else {
-			objectName = time.Now().Format(time.RFC3339Nano) + ".sql"
+			objectName = time.Now().Format("20060102T150405") + ".sql"
 		}
 
-		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName)
-
+		locations, err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		if *ensureIamBindingsTemp {
-			sqlAdminSvcAccount, err := cloudsql.GetSvcAcctForCloudSQLInstance(ctx, sqlAdminSvc, *project, string(instance), "")
-			if err != nil {
-				log.Fatal(err)
-			}
-			err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, *project, *bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
-			if err != nil {
-				log.Fatal(err)
-			}
-			err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, *project, *bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+		if *validate {
+			err = cloudsql.Validate(ctx, sqlAdminSvc, storageSvc, *project, string(instance), *bucket, locations[1])
 			if err != nil {
 				log.Fatal(err)
 			}
