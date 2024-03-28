@@ -1,2 +1,3 @@
-cloudsql-exporter
+build
+coverage.txt
 .lock
