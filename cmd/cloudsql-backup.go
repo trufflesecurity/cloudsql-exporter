@@ -60,7 +60,9 @@ func NewCommand() *BackupOptions {
 	return opts
 }
 
-func Backup(opts *BackupOptions) {
+func Backup(opts *BackupOptions) []string {
+	var backupPaths []string
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -126,6 +128,7 @@ func Backup(opts *BackupOptions) {
 		if err != nil {
 			log.Fatal(err)
 		}
+		backupPaths = append(backupPaths, locations...)
 
 		if opts.Validate {
 			err = cloudsql.Validate(ctx, sqlAdminSvc, storageSvc, opts.Project, string(instance), opts.Bucket, locations[1])
@@ -136,4 +139,5 @@ func Backup(opts *BackupOptions) {
 	}
 
 	log.Println("Backup complete")
+	return backupPaths
 }
