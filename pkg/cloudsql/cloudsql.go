@@ -26,16 +26,14 @@ type CloudSQL struct {
 	ProjectID string
 
 	ctx         context.Context
-	logger      *slog.Logger
 	sqlAdminSvc *sqladmin.Service
 	storageSvc  *storage.Service
 }
 
-func NewCloudSQL(ctx context.Context, logger *slog.Logger, sqlAdminSvc *sqladmin.Service, storageSvc *storage.Service, projectID string) *CloudSQL {
+func NewCloudSQL(ctx context.Context, sqlAdminSvc *sqladmin.Service, storageSvc *storage.Service, projectID string) *CloudSQL {
 	return &CloudSQL{
 		ProjectID:   projectID,
 		ctx:         ctx,
-		logger:      logger,
 		sqlAdminSvc: sqlAdminSvc,
 		storageSvc:  storageSvc,
 	}
@@ -43,7 +41,7 @@ func NewCloudSQL(ctx context.Context, logger *slog.Logger, sqlAdminSvc *sqladmin
 
 // EnumerateCloudSQLDatabaseInstances enumerates Cloud SQL database instances in the given project.
 func (c *CloudSQL) EnumerateCloudSQLDatabaseInstances(instanceID string) (Instances, error) {
-	c.logger.Info("Enumerating Cloud SQL instances in project", "projectId", c.ProjectID)
+	slog.Info("Enumerating Cloud SQL instances in project", "projectId", c.ProjectID)
 
 	instances := Instances{}
 
@@ -62,7 +60,7 @@ func (c *CloudSQL) EnumerateCloudSQLDatabaseInstances(instanceID string) (Instan
 	}
 
 	for _, instance := range enumerated {
-		c.logger.Info("Found instance", "instance", instance)
+		slog.Info("Found instance", "instance", instance)
 		databases, err := c.ListDatabasesForCloudSQLInstance(instance)
 		if err != nil {
 			return nil, err
@@ -85,7 +83,7 @@ func (c *CloudSQL) GetSvcAcctForCloudSQLInstance(instanceID, database string) (s
 
 // AddRoleBindingToGCSBucket adds a role binding to a GCS bucket.
 func (c *CloudSQL) AddRoleBindingToGCSBucket(bucketName, role, sqlAdminSvcAccount, instance string) error {
-	c.logger.Info("Ensuring role to bucket for service account used by instance", "role", role, "bucket", bucketName, "service_account", sqlAdminSvcAccount, "instance", instance)
+	slog.Info("Ensuring role to bucket for service account used by instance", "role", role, "bucket", bucketName, "service_account", sqlAdminSvcAccount, "instance", instance)
 
 	svcAcctMember := fmt.Sprintf("serviceAccount:%s", sqlAdminSvcAccount)
 
@@ -99,7 +97,7 @@ func (c *CloudSQL) AddRoleBindingToGCSBucket(bucketName, role, sqlAdminSvcAccoun
 		if binding.Role == role {
 			for _, member := range binding.Members {
 				if member == svcAcctMember {
-					c.logger.Info("Role already exists for service account", "role", role, "service_account", sqlAdminSvcAccount)
+					slog.Info("Role already exists for service account", "role", role, "service_account", sqlAdminSvcAccount)
 					return nil
 				}
 			}
@@ -127,7 +125,7 @@ func (c *CloudSQL) AddRoleBindingToGCSBucket(bucketName, role, sqlAdminSvcAccoun
 
 // RemoveRoleBindingToGCSBucket remove a role binding to a GCS bucket.
 func (c *CloudSQL) RemoveRoleBindingToGCSBucket(bucketName, role, sqlAdminSvcAccount, instance string) error {
-	c.logger.Info("Deleting role to bucket for service account used by instance", "role", role, "bucket", bucketName, "service_account", sqlAdminSvcAccount, "instance", instance)
+	slog.Info("Deleting role to bucket for service account used by instance", "role", role, "bucket", bucketName, "service_account", sqlAdminSvcAccount, "instance", instance)
 
 	svcAcctMember := fmt.Sprintf("serviceAccount:%s", sqlAdminSvcAccount)
 
@@ -172,10 +170,10 @@ func (c *CloudSQL) ListDatabasesForCloudSQLInstance(instanceID string) (Database
 
 	for _, database := range list.Items {
 		if database.Name == "mysql" || database.Name == "postgres" {
-			c.logger.Info("Skipping database", "database", database.Name)
+			slog.Info("Skipping database", "database", database.Name)
 			continue
 		}
-		c.logger.Info("Found database for instance", "database", database.Name, "instance", instanceID)
+		slog.Info("Found database for instance", "database", database.Name, "instance", instanceID)
 		databases = append(databases, database.Name)
 	}
 
@@ -192,7 +190,7 @@ func (c *CloudSQL) ExportCloudSQLDatabase(databases []string, instanceID, bucket
 		location := fmt.Sprintf("gs://%s/%s/cloudsql/%s", bucketName, instanceID, objectName)
 
 		locations = append(locations, location)
-		c.logger.Info("Exporting database for instance", "database", database, "instance", instanceID, "location", location)
+		slog.Info("Exporting database for instance", "database", database, "instance", instanceID, "location", location)
 
 		req := &sqladmin.InstancesExportRequest{
 			ExportContext: &sqladmin.ExportContext{
@@ -284,7 +282,7 @@ func (c *CloudSQL) Validate(instance string, bucket string, file string) error {
 
 	db, err := c.sqlAdminSvc.Instances.Get(c.ProjectID, dbinstance.Name).Do()
 	if err != nil && err.(*googleapi.Error).Code != 404 {
-		c.logger.Error("Failed to get PostgreSQL instance", "instance", dbinstance.Name, "error", err)
+		slog.Error("Failed to get PostgreSQL instance", "instance", dbinstance.Name, "error", err)
 		return err
 	}
 
@@ -292,47 +290,48 @@ func (c *CloudSQL) Validate(instance string, bucket string, file string) error {
 		// Create the PostgreSQL instance
 		operation, err := c.sqlAdminSvc.Instances.Insert(c.ProjectID, dbinstance).Context(c.ctx).Do()
 		if err != nil {
-			c.logger.Error("Failed to create PostgreSQL instance", "instance", dbinstance.Name, "error", err)
+			slog.Error("Failed to create PostgreSQL instance", "instance", dbinstance.Name, "error", err)
 			return err
 		}
 
 		// Wait for the operation to complete
 		if err := c.WaitForSQLOperation(time.Minute*1, operation); err != nil {
-			c.logger.Error("Failed to create PostgreSQL instance", "error", err)
+			slog.Error("Failed to create PostgreSQL instance", "instance", dbinstance.Name, "error", err)
+			return err
 		}
 
-		c.logger.Info("PostgreSQL instance created successfully.", "instance", dbinstance.Name)
+		fmt.Println("PostgreSQL instance created successfully.")
 	}
 
 	sqlAdminSvcAccount, err := c.GetSvcAcctForCloudSQLInstance(fmt.Sprintf("restore-%s", instance), "")
 	if err != nil {
-		c.logger.Error("Failed to get service account for instance", "instance", fmt.Sprintf("restore-%s", instance), "error", err)
+		slog.Error("Failed to get service account for instance", "instance", fmt.Sprintf("restore-%s", instance), "error", err)
 		return err
 	}
 
 	defer func() {
 		err = c.RemoveRoleBindingToGCSBucket(bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, string(instance))
 		if err != nil {
-			c.logger.Error("Failed to remove role binding roles/storage.legacyBucketReader", "service_account", sqlAdminSvcAccount, "error", err)
+			slog.Error("Failed to remove role binding roles/storage.legacyBucketReader", "service_account", sqlAdminSvcAccount, "error", err)
 		}
-		err =c.RemoveRoleBindingToGCSBucket(bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+		err = c.AddRoleBindingToGCSBucket(bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
 		if err != nil {
-			c.logger.Error("Failed to remove role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
+			slog.Error("Failed to remove role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
 		}
 	}()
 
 	err = c.AddRoleBindingToGCSBucket(bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, string(instance))
 	if err != nil {
-		c.logger.Error("Failed to add role binding roles/storage.legacyBucketReader", "service_account", sqlAdminSvcAccount, "error", err)
+		slog.Error("Failed to add role binding roles/storage.legacyBucketReader", "service_account", sqlAdminSvcAccount, "error", err)
 		return err
 	}
 	err = c.AddRoleBindingToGCSBucket(bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
 	if err != nil {
-		c.logger.Error("Failed to add role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
+		slog.Error("Failed to add role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
 		return err
 	}
 
-	c.logger.Info("Import data", "file", file)
+	slog.Info("Import data", "file", file)
 	// Import data from SQL file
 	importReq := &sqladmin.InstancesImportRequest{
 		ImportContext: &sqladmin.ImportContext{
@@ -345,14 +344,14 @@ func (c *CloudSQL) Validate(instance string, bucket string, file string) error {
 
 	importOp, err := c.sqlAdminSvc.Instances.Import(c.ProjectID, fmt.Sprintf("restore-%s", instance), importReq).Context(c.ctx).Do()
 	if err != nil {
-		c.logger.Error("Failed to import data", "file", file, "error", err)
+		slog.Error("Failed to import data", "file", file, "error", err)
 	}
 
 	// Wait for the import operation to complete
 	if err := c.WaitForSQLOperation(time.Minute*1, importOp); err != nil {
-		c.logger.Error("Failed to import data", "error", err)
+		slog.Error("Failed to import data", "error", err)
 	}
 
-	c.logger.Info("Data imported successfully.")
+	slog.Info("Data imported successfully.")
 	return nil
 }
