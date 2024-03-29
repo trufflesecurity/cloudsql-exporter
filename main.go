@@ -9,10 +9,11 @@ import (
 
 func main() {
 	logOpts := &slog.HandlerOptions{
-    Level: slog.LevelInfo,
+		Level: slog.LevelInfo,
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, logOpts))
-	opts := cmd.NewCommand(logger)
+	slog.SetDefault(logger)
+	opts := cmd.NewCommand()
 	cmd.Backup(opts)
 }
