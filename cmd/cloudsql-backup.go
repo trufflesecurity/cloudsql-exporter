@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -38,17 +38,20 @@ type BackupOptions struct {
 	Validate              bool
 
 	Version string
+	logger  *slog.Logger
 }
 
-func NewBackupOptions() *BackupOptions {
-	return &BackupOptions{}
+func NewBackupOptions(logger *slog.Logger) *BackupOptions {
+	return &BackupOptions{
+		logger: logger,
+	}
 }
 
-func NewCommand() *BackupOptions {
+func NewCommand(logger *slog.Logger) *BackupOptions {
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 	app.Version("cloudsql-exporter " + version.BuildVersion)
 
-	opts := NewBackupOptions()
+	opts := NewBackupOptions(logger)
 	opts.Bucket = *bucket
 	opts.Project = *project
 	opts.Instance = *instance
@@ -60,7 +63,7 @@ func NewCommand() *BackupOptions {
 	return opts
 }
 
-func Backup(opts *BackupOptions) []string {
+func Backup(opts *BackupOptions) ([]string, error) {
 	var backupPaths []string
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -68,51 +71,58 @@ func Backup(opts *BackupOptions) []string {
 
 	hc, err := google.DefaultClient(ctx, sqladmin.SqlserviceAdminScope)
 	if err != nil {
-		log.Fatal(err)
+		opts.logger.Error("error init http.Client", "error", err)
+		return nil, err
 	}
 
 	sqlAdminSvc, err := sqladmin.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
-		log.Fatal(err)
+		opts.logger.Error("error init sqladmin.Service client", "error", err)
+		return nil, err
 	}
 
 	storageSvc, err := storage.NewService(ctx, option.WithHTTPClient(hc))
 	if err != nil {
-		log.Fatal(err)
+		opts.logger.Error("init storage.Service client", "error", err)
+		return nil, err
 	}
 
-	instances, err := cloudsql.EnumerateCloudSQLDatabaseInstances(ctx, sqlAdminSvc, opts.Project, opts.Instance)
+	cls := cloudsql.NewCloudSQL(ctx, opts.logger, sqlAdminSvc, storageSvc, opts.Project)
+
+	instances, err := cls.EnumerateCloudSQLDatabaseInstances(opts.Instance)
 	if err != nil {
-		log.Fatal(err)
+		opts.logger.Error("error reading cloudsql instances", "error", err)
+		return nil, err
 	}
 
 	for instance, databases := range instances {
-		log.Printf("Exporting backup for instance %s", instance)
+		opts.logger.Info("Exporting backup for instance", "instance", string(instance))
 
-		if opts.EnsureIamBindings || opts.EnsureIamBindingsTemp{
-			sqlAdminSvcAccount, err := cloudsql.GetSvcAcctForCloudSQLInstance(ctx, sqlAdminSvc, opts.Project, string(instance), "")
+		if opts.EnsureIamBindings || opts.EnsureIamBindingsTemp {
+			sqlAdminSvcAccount, err := cls.GetSvcAcctForCloudSQLInstance(string(instance), "")
 			if err != nil {
-				log.Fatal(err)
+				opts.logger.Error("error get service account for instance", "instance", string(instance), "error", err)
+				return nil, err
 			}
 			if opts.EnsureIamBindingsTemp {
 				defer func() {
-					err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, opts.Project, opts.Bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
+					err = cls.RemoveRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
 					if err != nil {
-						log.Fatal(err)
+						opts.logger.Error("error remove role binding roles/storage.objectCreator", "service_account", sqlAdminSvcAccount, "error", err)
 					}
-					err = cloudsql.RemoveRoleBindingToGCSBucket(ctx, storageSvc, opts.Project, opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+					err = cls.RemoveRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
 					if err != nil {
-						log.Fatal(err)
+						opts.logger.Error("error remove role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
 					}
 				}()
 			}
-			err = cloudsql.AddRoleBindingToGCSBucket(ctx, storageSvc, opts.Project, opts.Bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
+			err = cls.AddRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectCreator", sqlAdminSvcAccount, string(instance))
 			if err != nil {
-				log.Fatal(err)
+				opts.logger.Error("error add role binding roles/storage.objectCreator", "service_account", sqlAdminSvcAccount, "error", err)
 			}
-			err = cloudsql.AddRoleBindingToGCSBucket(ctx, storageSvc, opts.Project, opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+			err = cls.AddRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
 			if err != nil {
-				log.Fatal(err)
+				opts.logger.Error("error add role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
 			}
 		}
 
@@ -124,20 +134,24 @@ func Backup(opts *BackupOptions) []string {
 			objectName = time.Now().Format("20060102T150405") + ".sql"
 		}
 
-		locations, err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, opts.Project, string(instance), opts.Bucket, objectName)
+		locations, err := cls.ExportCloudSQLDatabase(databases,string(instance), opts.Bucket, objectName)
 		if err != nil {
-			log.Fatal(err)
+			opts.logger.Error("error export cloudsql database", "databases", databases, "instance", string(instance), "error", err)
+			return nil, err
 		}
 		backupPaths = append(backupPaths, locations...)
 
 		if opts.Validate {
-			err = cloudsql.Validate(ctx, sqlAdminSvc, storageSvc, opts.Project, string(instance), opts.Bucket, locations[1])
+			//TODO
+			err = cls.Validate(string(instance), opts.Bucket, locations[1])
 			if err != nil {
-				log.Fatal(err)
+				opts.logger.Error("error validate cloudsql database", "databases", databases, "instance", string(instance), "error", err)
+				return nil, err
 			}
 		}
 	}
 
-	log.Println("Backup complete")
-	return backupPaths
+	opts.logger.Info("Backup complete", "backups", backupPaths)
+
+	return backupPaths, nil
 }
