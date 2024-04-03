@@ -15,5 +15,10 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, logOpts))
 	slog.SetDefault(logger)
 	opts := cmd.NewCommand()
-	cmd.Backup(opts)
+	_, err := cmd.Backup(opts)
+
+	if err != nil {
+		logger.Error("Failed to backup CloudSQL", "error", err)
+		os.Exit(1)
+	}
 }

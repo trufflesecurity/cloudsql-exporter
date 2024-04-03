@@ -10,7 +10,9 @@ import (
 
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/sqladmin/v1"
-	"google.golang.org/api/storage/v1"
+
+	"cloud.google.com/go/iam"
+	"cloud.google.com/go/storage"
 )
 
 type InstanceID string
@@ -27,10 +29,10 @@ type CloudSQL struct {
 
 	ctx         context.Context
 	sqlAdminSvc *sqladmin.Service
-	storageSvc  *storage.Service
+	storageSvc  *storage.Client
 }
 
-func NewCloudSQL(ctx context.Context, sqlAdminSvc *sqladmin.Service, storageSvc *storage.Service, projectID string) *CloudSQL {
+func NewCloudSQL(ctx context.Context, sqlAdminSvc *sqladmin.Service, storageSvc *storage.Client, projectID string) *CloudSQL {
 	return &CloudSQL{
 		ProjectID:   projectID,
 		ctx:         ctx,
@@ -87,36 +89,21 @@ func (c *CloudSQL) AddRoleBindingToGCSBucket(bucketName, role, sqlAdminSvcAccoun
 
 	svcAcctMember := fmt.Sprintf("serviceAccount:%s", sqlAdminSvcAccount)
 
-	policy, err := c.storageSvc.Buckets.GetIamPolicy(bucketName).Do()
+	bucket := c.storageSvc.Bucket(bucketName)
+	policy, err := bucket.IAM().Policy(c.ctx)
 	if err != nil {
 		return err
 	}
 
-	roleExists := false
-	for i, binding := range policy.Bindings {
-		if binding.Role == role {
-			for _, member := range binding.Members {
-				if member == svcAcctMember {
-					slog.Info("Role already exists for service account", "role", role, "service_account", sqlAdminSvcAccount)
-					return nil
-				}
-			}
-			binding.Members = append(binding.Members, svcAcctMember)
-			policy.Bindings[i] = binding
-			roleExists = true
-			break
-		}
+	var iamRole iam.RoleName = iam.RoleName(role)
+
+	if policy.HasRole(svcAcctMember, iamRole) {
+		return nil
 	}
 
-	if !roleExists {
-		policy.Bindings = append(policy.Bindings, &storage.PolicyBindings{
-			Role:    role,
-			Members: []string{svcAcctMember},
-		})
-	}
+	policy.Add(svcAcctMember, iamRole)
 
-	_, err = c.storageSvc.Buckets.SetIamPolicy(bucketName, policy).Do()
-	if err != nil {
+	if err := bucket.IAM().SetPolicy(c.ctx, policy); err != nil {
 		return err
 	}
 
@@ -129,30 +116,21 @@ func (c *CloudSQL) RemoveRoleBindingToGCSBucket(bucketName, role, sqlAdminSvcAcc
 
 	svcAcctMember := fmt.Sprintf("serviceAccount:%s", sqlAdminSvcAccount)
 
-	policy, err := c.storageSvc.Buckets.GetIamPolicy(bucketName).Do()
+	bucket := c.storageSvc.Bucket(bucketName)
+	policy, err := bucket.IAM().Policy(c.ctx)
 	if err != nil {
 		return err
 	}
 
-	for i, binding := range policy.Bindings {
-		if binding.Role == role {
-			for j, member := range binding.Members {
-				if member == svcAcctMember {
-					if len(binding.Members) == 1 {
-						binding.Members = []string{}
-					} else {
-						binding.Members = append(binding.Members[:j], binding.Members[j+1:]...)
-					}
-					policy.Bindings[i] = binding
-					break
-				}
-			}
-			break
-		}
+	var iamRole iam.RoleName = iam.RoleName(role)
+
+	if !policy.HasRole(svcAcctMember, iamRole) {
+		return nil
 	}
 
-	_, err = c.storageSvc.Buckets.SetIamPolicy(bucketName, policy).Do()
-	if err != nil {
+	policy.Remove(svcAcctMember, iamRole)
+
+	if err := bucket.IAM().SetPolicy(c.ctx, policy); err != nil {
 		return err
 	}
 

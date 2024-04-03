@@ -6,10 +6,8 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/oauth2/google"
-	"google.golang.org/api/option"
+	"cloud.google.com/go/storage"
 	"google.golang.org/api/sqladmin/v1"
-	"google.golang.org/api/storage/v1"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/fr12k/cloudsql-exporter/pkg/cloudsql"
@@ -67,19 +65,13 @@ func Backup(opts *BackupOptions) ([]string, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	hc, err := google.DefaultClient(ctx, sqladmin.SqlserviceAdminScope)
-	if err != nil {
-		slog.Error("error init http.Client", "error", err)
-		return nil, err
-	}
-
-	sqlAdminSvc, err := sqladmin.NewService(ctx, option.WithHTTPClient(hc))
+	sqlAdminSvc, err := sqladmin.NewService(ctx)
 	if err != nil {
 		slog.Error("error init sqladmin.Service client", "error", err)
 		return nil, err
 	}
 
-	storageSvc, err := storage.NewService(ctx, option.WithHTTPClient(hc))
+	storageSvc, err := storage.NewClient(ctx)
 	if err != nil {
 		slog.Error("init storage.Service client", "error", err)
 		return nil, err
