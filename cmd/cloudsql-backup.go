@@ -39,8 +39,7 @@ type BackupOptions struct {
 }
 
 func NewBackupOptions() *BackupOptions {
-	return &BackupOptions{
-	}
+	return &BackupOptions{}
 }
 
 func NewCommand() *BackupOptions {
@@ -131,8 +130,9 @@ func Backup(opts *BackupOptions) ([]string, error) {
 		}
 		backupPaths = append(backupPaths, locations...)
 
-		if opts.Validate {
-			err = cls.Validate(string(instance), opts.Bucket, locations[1])
+		if opts.Validate && len(locations) > 0 {
+			//TODO only supports one database export not multiple
+			err = cls.Validate(string(instance), opts.Bucket, locations[0])
 			if err != nil {
 				slog.Error("error validate cloudsql database", "databases", databases, "instance", string(instance), "error", err)
 				return nil, err
