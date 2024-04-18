@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/fr12k/cloudsql-exporter/cmd"
+	_ "github.com/fr12k/cloudsql-exporter/cmd/backup"
+	_ "github.com/fr12k/cloudsql-exporter/cmd/restore"
 )
 
 func main() {
@@ -14,11 +16,6 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, logOpts))
 	slog.SetDefault(logger)
-	opts := cmd.NewCommand()
-	_, err := cmd.Backup(opts)
 
-	if err != nil {
-		logger.Error("Failed to backup CloudSQL", "error", err)
-		os.Exit(1)
-	}
+	cmd.Execute()
 }
