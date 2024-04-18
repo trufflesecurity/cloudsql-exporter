@@ -10,17 +10,7 @@ import (
 	"google.golang.org/api/sqladmin/v1"
 )
 
-type RestoreOptions struct {
-	Bucket   string
-	Project  string
-	Instance string
-	File     string
-	User     string
-
-	Version string
-}
-
-func Restore(opts *RestoreOptions) ([]string, error) {
+func Restore(opts *cloudsql.RestoreOptions) ([]string, error) {
 	var backupPaths []string
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -46,8 +36,7 @@ func Restore(opts *RestoreOptions) ([]string, error) {
 
 	cls := cloudsql.NewCloudSQL(ctx, sqlAdminSvc, storageSvc, secretSvc, opts.Project)
 
-	//TODO store the password in GCP Secret Manager
-	password, err := cls.Restore(opts.Instance, opts.Bucket, opts.File, opts.User)
+	password, err := cls.Restore(opts)
 	if err != nil {
 		slog.Error("error validate cloudsql database", "instance", opts.Instance, "error", err)
 		return nil, err

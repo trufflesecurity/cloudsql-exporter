@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/fr12k/cloudsql-exporter/cmd"
+	"github.com/fr12k/cloudsql-exporter/pkg/cloudsql"
 	"github.com/fr12k/cloudsql-exporter/pkg/restore"
 
 	"github.com/spf13/cobra"
@@ -37,7 +38,7 @@ func execute(ccmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Restore command %v %v %v %v", bucket, project, instance, user)
 
-	opts := &restore.RestoreOptions{
+	opts := &cloudsql.RestoreOptions{
 		Bucket:   bucket,
 		Project:  project,
 		Instance: instance,

@@ -126,7 +126,13 @@ func Backup(opts *BackupOptions) ([]string, error) {
 		if opts.Validate {
 			for _, location := range locations {
 				//TODO only supports one database export not multiple
-				password, err := cls.Restore(string(instance), opts.Bucket, location, opts.User)
+				opts := &cloudsql.RestoreOptions {
+					Instance: string(instance),
+					Bucket: opts.Bucket,
+					User: opts.User,
+					File: location,
+				}
+				password, err := cls.Restore(opts)
 				if err != nil {
 					slog.Error("error validate cloudsql database", "databases", databases, "instance", string(instance), "error", err)
 					return nil, err

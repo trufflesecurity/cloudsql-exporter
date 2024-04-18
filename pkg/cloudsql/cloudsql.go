@@ -389,12 +389,24 @@ func generatePassword(length int) string {
 	return string(password)
 }
 
+type RestoreOptions struct {
+	Bucket   string
+	Project  string
+	Instance string
+	File     string
+	User     string
 
-func (c *CloudSQL) Restore(instance string, bucket string, file string, user string) (*string, error) {
+	ValidateStats bool
+	StoreSecret	 bool
+
+	Version string
+}
+
+func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	// Define the database instance parameters
 	password := generatePassword(12)
 	dbinstance := &sqladmin.DatabaseInstance{
-		Name:         fmt.Sprintf("restore-%s", instance),
+		Name:         fmt.Sprintf("restore-%s", opts.Instance),
 		InstanceType: "CLOUD_SQL_INSTANCE",
 		//TODO make this configurable
 		Region: "europe-west3",
@@ -408,7 +420,7 @@ func (c *CloudSQL) Restore(instance string, bucket string, file string, user str
 				QueryInsightsEnabled: true,
 			},
 			UserLabels: map[string]string{
-				"service": fmt.Sprintf("restore-%s", instance),
+				"service": fmt.Sprintf("restore-%s", opts.Instance),
 				"kind":    "restore",
 			},
 		},
@@ -508,7 +520,7 @@ func (c *CloudSQL) Restore(instance string, bucket string, file string, user str
 		password = string(secretVersion.Payload.Data)
 	}
 
-	backLocation := bakstorage.NewLocation(file)
+	backLocation := bakstorage.NewLocation(opts.File)
 
 	database := &sqladmin.Database{
 		Name: backLocation.Database,
@@ -575,43 +587,43 @@ func (c *CloudSQL) Restore(instance string, bucket string, file string, user str
 		}
 	}
 
-	sqlAdminSvcAccount, err := c.GetSvcAcctForCloudSQLInstance(fmt.Sprintf("restore-%s", instance), "")
+	sqlAdminSvcAccount, err := c.GetSvcAcctForCloudSQLInstance(fmt.Sprintf("restore-%s", opts.Instance), "")
 	if err != nil {
-		slog.Error("Failed to get service account for instance", "instance", fmt.Sprintf("restore-%s", instance), "error", err)
+		slog.Error("Failed to get service account for instance", "instance", fmt.Sprintf("restore-%s", opts.Instance), "error", err)
 		return nil, err
 	}
 
 	defer func() {
-		err = c.RemoveRoleBindingToGCSBucket(bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, string(instance))
+		err = c.RemoveRoleBindingToGCSBucket(opts.Bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, opts.Instance)
 		if err != nil {
 			slog.Error("Failed to remove role binding roles/storage.legacyBucketReader", "service_account", sqlAdminSvcAccount, "error", err)
 		}
-		err = c.AddRoleBindingToGCSBucket(bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+		err = c.AddRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, opts.Instance)
 		if err != nil {
 			slog.Error("Failed to remove role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
 		}
 	}()
 
-	err = c.AddRoleBindingToGCSBucket(bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, string(instance))
+	err = c.AddRoleBindingToGCSBucket(opts.Bucket, "roles/storage.legacyBucketReader", sqlAdminSvcAccount, opts.Instance)
 	if err != nil {
 		slog.Error("Failed to add role binding roles/storage.legacyBucketReader", "service_account", sqlAdminSvcAccount, "error", err)
 		return nil, err
 	}
-	err = c.AddRoleBindingToGCSBucket(bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, string(instance))
+	err = c.AddRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, opts.Instance)
 	if err != nil {
 		slog.Error("Failed to add role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
 		return nil, err
 	}
 
-	slog.Info("Import data", "instance", dbinstance.Name, "file", file)
+	slog.Info("Import data", "instance", dbinstance.Name, "file", opts.File)
 	// Import data from SQL file
 	importReq := &sqladmin.InstancesImportRequest{
 		ImportContext: &sqladmin.ImportContext{
 			Kind:     "sql#importContext",
 			Database: database.Name,
 			FileType: "SQL",
-			ImportUser: user,
-			Uri:        file, // You can also use local file path here
+			ImportUser: opts.User,
+			Uri:        opts.File, // You can also use local file path here
 			//TODO check what bak import and export is capable of
 			// BakImportOptions: &sqladmin.ImportContextBakImportOptions{
 
@@ -619,9 +631,9 @@ func (c *CloudSQL) Restore(instance string, bucket string, file string, user str
 		},
 	}
 
-	importOp, err := c.sqlAdminSvc.Instances.Import(c.ProjectID, fmt.Sprintf("restore-%s", instance), importReq).Context(c.ctx).Do()
+	importOp, err := c.sqlAdminSvc.Instances.Import(c.ProjectID, fmt.Sprintf("restore-%s", opts.Instance), importReq).Context(c.ctx).Do()
 	if err != nil {
-		slog.Error("Failed to import data", "file", file, "error", err)
+		slog.Error("Failed to import data", "file", opts.File, "error", err)
 		return nil, err
 	}
 
@@ -631,7 +643,7 @@ func (c *CloudSQL) Restore(instance string, bucket string, file string, user str
 		return nil, err
 	}
 
-	slog.Info("Data imported successfully", "instance", dbinstance.Name, "file", file)
+	slog.Info("Data imported successfully", "instance", dbinstance.Name, "file", opts.File)
 
 	//TODO make the system user be configurable
 	stats, err := c.GetCloudSQLStatistic(dbinstance.Name, "postgres", password, database.Name)
@@ -661,5 +673,5 @@ func (c *CloudSQL) Restore(instance string, bucket string, file string, user str
 		}
 	}
 
-	return &password, nil
+	return &dbinstance.Name, nil
 }
