@@ -4,12 +4,25 @@ go 1.19
 
 require (
 	cloud.google.com/go/iam v1.1.7
+	cloud.google.com/go/secretmanager v1.12.0
+	github.com/jackc/pgx/v5 v5.5.5
+	github.com/spf13/cobra v1.8.0
+	github.com/stretchr/testify v1.8.4
 	google.golang.org/api v0.171.0
-	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	cloud.google.com/go v0.112.1 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
+	github.com/spf13/pflag v1.0.5 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
@@ -19,11 +32,10 @@ require (
 )
 
 require (
+	cloud.google.com/go/cloudsqlconn v1.8.1
 	cloud.google.com/go/compute v1.24.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/storage v1.40.0
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
-	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

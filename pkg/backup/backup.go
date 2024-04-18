@@ -1,61 +1,30 @@
-package cmd
+package backup
 
 import (
 	"context"
 	"log/slog"
-	"os"
 	"time"
 
+	secretmanager "cloud.google.com/go/secretmanager/apiv1beta2"
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/sqladmin/v1"
-	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/fr12k/cloudsql-exporter/pkg/cloudsql"
-	"github.com/fr12k/cloudsql-exporter/pkg/version"
-)
-
-var (
-	app = kingpin.New("cloudsql-backup", "Export Cloud SQL databases to Google Cloud Storage")
-
-	bucket                = app.Flag("bucket", "Google Cloud Storage bucket name").Required().String()
-	project               = app.Flag("project", "GCP project ID").Required().String()
-	instance              = app.Flag("instance", "Cloud SQL instance name, if not specified all within the project will be enumerated").String()
-	compression           = app.Flag("compression", "Enable compression for exported SQL files").Bool()
-	ensureIamBindings     = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
-	ensureIamBindingsTemp = app.Flag("ensure-iam-bindings-temp", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
-	validate              = app.Flag("validate", "Will try to import the exported data into a new created CloudSQL instance").Bool()
 )
 
 type BackupOptions struct {
-	Bucket                string
-	Project               string
-	Instance              string
+	Bucket   string
+	Project  string
+	Instance string
+	User     string
+	Password string
+
 	Compression           bool
 	EnsureIamBindings     bool
 	EnsureIamBindingsTemp bool
 	Validate              bool
 
 	Version string
-}
-
-func NewBackupOptions() *BackupOptions {
-	return &BackupOptions{}
-}
-
-func NewCommand() *BackupOptions {
-	kingpin.MustParse(app.Parse(os.Args[1:]))
-	app.Version("cloudsql-exporter " + version.BuildVersion)
-
-	opts := NewBackupOptions()
-	opts.Bucket = *bucket
-	opts.Project = *project
-	opts.Instance = *instance
-	opts.Compression = *compression
-	opts.EnsureIamBindings = *ensureIamBindings
-	opts.EnsureIamBindingsTemp = *ensureIamBindingsTemp
-	opts.Validate = *validate
-	opts.Version = version.BuildVersion
-	return opts
 }
 
 func Backup(opts *BackupOptions) ([]string, error) {
@@ -76,7 +45,13 @@ func Backup(opts *BackupOptions) ([]string, error) {
 		return nil, err
 	}
 
-	cls := cloudsql.NewCloudSQL(ctx, sqlAdminSvc, storageSvc, opts.Project)
+	secretSvc, err := secretmanager.NewClient(ctx)
+	if err != nil {
+		slog.Error("init secretmanager.Service client", "error", err)
+		return nil, err
+	}
+
+	cls := cloudsql.NewCloudSQL(ctx, sqlAdminSvc, storageSvc, secretSvc, opts.Project)
 
 	instances, err := cls.EnumerateCloudSQLDatabaseInstances(opts.Instance)
 	if err != nil {
@@ -117,11 +92,29 @@ func Backup(opts *BackupOptions) ([]string, error) {
 
 		var objectName string
 
+		backupTime := time.Now()
+
 		if opts.Compression {
-			objectName = time.Now().Format("20060102T150405") + ".sql.gz"
+			objectName = backupTime.Format("20060102T150405") + ".sql.gz"
 		} else {
-			objectName = time.Now().Format("20060102T150405") + ".sql"
+			objectName = backupTime.Format("20060102T150405") + ".sql"
 		}
+
+		users, err := cls.ExportCloudSQLUser(string(instance), opts.Bucket, backupTime.Format("20060102T150405"))
+		if err != nil {
+			slog.Error("error export cloudsql user", "databases", databases, "instance", string(instance), "error", err)
+			return nil, err
+		}
+
+		slog.Info("Exported cloudsql users", "users", users)
+
+		stats, err := cls.ExportCloudSQLStatistics(databases, string(instance), opts.Bucket, backupTime.Format("20060102T150405"), opts.User, opts.Password)
+		if err != nil {
+			slog.Error("error export cloudsql statistics", "databases", databases, "instance", string(instance), "error", err)
+			return nil, err
+		}
+
+		slog.Info("Exported cloudsql statistics", "stats", stats)
 
 		locations, err := cls.ExportCloudSQLDatabase(databases, string(instance), opts.Bucket, objectName)
 		if err != nil {
@@ -130,12 +123,15 @@ func Backup(opts *BackupOptions) ([]string, error) {
 		}
 		backupPaths = append(backupPaths, locations...)
 
-		if opts.Validate && len(locations) > 0 {
-			//TODO only supports one database export not multiple
-			err = cls.Validate(string(instance), opts.Bucket, locations[0])
-			if err != nil {
-				slog.Error("error validate cloudsql database", "databases", databases, "instance", string(instance), "error", err)
-				return nil, err
+		if opts.Validate {
+			for _, location := range locations {
+				//TODO only supports one database export not multiple
+				password, err := cls.Restore(string(instance), opts.Bucket, location, opts.User)
+				if err != nil {
+					slog.Error("error validate cloudsql database", "databases", databases, "instance", string(instance), "error", err)
+					return nil, err
+				}
+				slog.Info("Successfully validated backup", "instance", string(instance), "database", databases, "password", *password)
 			}
 		}
 	}
