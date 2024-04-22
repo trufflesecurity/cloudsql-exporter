@@ -169,7 +169,7 @@ func (c *CloudSQL) ListDatabasesForCloudSQLInstance(instanceID string) (Database
 	return databases, nil
 }
 
-func (c *CloudSQL) ExportUsers(instanceID, database string) ([]*sqladmin.User, error) {
+func (c *CloudSQL) ExportUsers(instanceID string) ([]*sqladmin.User, error) {
 	users, err := c.sqlAdminSvc.Users.List(c.ProjectID, instanceID).Do()
 	if err != nil {
 		return nil, err
@@ -178,17 +178,16 @@ func (c *CloudSQL) ExportUsers(instanceID, database string) ([]*sqladmin.User, e
 }
 
 // ExportCloudSQLUser exports a Cloud SQL users to Google Cloud Storage bucket.
-func (c *CloudSQL) ExportCloudSQLUser(instanceID, bucketName, backupTime string) ([]string, error) {
-	location := fmt.Sprintf("%s/cloudsql/users-%s.txt", instanceID, backupTime)
-	slog.Info("Exporting users for instance", "instance", instanceID, "location", location)
+func (c *CloudSQL) ExportCloudSQLUser(backupLocation bakstorage.Location,) ([]string, error) {
+	slog.Info("Exporting users for instance", "instance", backupLocation.Instance, "location", backupLocation.UserLocation())
 
-	users, err := c.ExportUsers(instanceID, "")
+	users, err := c.ExportUsers(backupLocation.Instance)
 	if err != nil {
 		return nil, err
 	}
 
-	bucket := c.storageSvc.Bucket(bucketName)
-	writer := bucket.Object(location).NewWriter(c.ctx)
+	bucket := c.storageSvc.Bucket(backupLocation.Bucket)
+	writer := bucket.Object(backupLocation.UserLocation()).NewWriter(c.ctx)
 	defer writer.Close()
 
 	userNames := []string{}
@@ -225,7 +224,7 @@ func (c *CloudSQL) GetCloudSQLStatistic(instanceID, user, password, database str
 
 	dbConn, err := conn.Connect()
 	if err != nil {
-		slog.Error("Failed to connect to database", "instance", conn.URL, "database", conn.Database, "error", err)
+		slog.Error("Failed to connect to database", "instance", instanceID, "database", conn.Database, "error", err)
 		return nil, err
 	}
 
@@ -247,16 +246,17 @@ ORDER BY
 	schemaname,
 	tablename;`
 
+	slog.Info("Executing analyze query", "instance", instanceID, "database", conn.Database, "query", "ANALYZE VERBOSE;")
 	_, err = dbConn.Exec("ANALYZE VERBOSE;")
 
 	if err != nil {
-		slog.Error("Failed to execute analyze query", "instance", conn.URL, "database", conn.Database, "error", err)
+		slog.Error("Failed to execute analyze query", "instance", instanceID, "database", conn.Database, "error", err)
 		return nil, err
 	}
 
 	rows, err := dbConn.Query(statsSQL)
 	if err != nil {
-		slog.Error("Failed to execute query", "instance", conn.URL, "database", conn.Database, "error", err)
+		slog.Error("Failed to execute stats query", "instance", instanceID, "database", conn.Database, "error", err)
 		return nil, err
 	}
 
@@ -282,20 +282,19 @@ ORDER BY
 }
 
 // ExportCloudSQLStatistics exports statistics like tables and size Google Cloud Storage bucket.
-func (c *CloudSQL) ExportCloudSQLStatistics(databases []string, instanceID, bucketName, backupTime string, user string, password string) (map[string]*CloudSQLStatistic, error) {
+func (c *CloudSQL) ExportCloudSQLStatistics(backupLocation bakstorage.Location, databases []string, user string, password string) (map[string]*CloudSQLStatistic, error) {
 	stats := make(map[string]*CloudSQLStatistic)
 
 	for _, database := range databases {
-		dbStats, err := c.GetCloudSQLStatistic(instanceID, user, password, database)
+		dbStats, err := c.GetCloudSQLStatistic(backupLocation.Instance, user, password, database)
 		if err != nil {
 			return nil, err
 		}
 
-		location := fmt.Sprintf("%s/cloudsql/stats-%s-%s.yaml", instanceID, database, backupTime)
-		slog.Info("Exporting statistics for instance", "instance", instanceID, "location", location)
+		slog.Info("Exporting statistics for instance", "instance", backupLocation.Instance, "location", backupLocation.StatsLocation(database))
 
-		bucket := c.storageSvc.Bucket(bucketName)
-		writer := bucket.Object(location).NewWriter(c.ctx)
+		bucket := c.storageSvc.Bucket(backupLocation.Bucket)
+		writer := bucket.Object(backupLocation.StatsLocation(database)).NewWriter(c.ctx)
 		defer writer.Close()
 
 		err = yaml.NewEncoder(writer).Encode(dbStats)
@@ -309,16 +308,13 @@ func (c *CloudSQL) ExportCloudSQLStatistics(databases []string, instanceID, buck
 }
 
 // ExportCloudSQLDatabase exports a Cloud SQL database to a Google Cloud Storage bucket.
-func (c *CloudSQL) ExportCloudSQLDatabase(databases []string, instanceID, bucketName, objectName string) ([]string, error) {
+func (c *CloudSQL) ExportCloudSQLDatabase(backupLocation bakstorage.Location, databases []string) ([]string, error) {
 	locations := make([]string, 0)
 	for _, database := range databases {
-		objectName := fmt.Sprintf("%s-%s", database, objectName)
-		//TODO make this configurable
-
-		location := fmt.Sprintf("gs://%s/%s/cloudsql/%s", bucketName, instanceID, objectName)
+		location := backupLocation.DatabaseLocation(database)
 
 		locations = append(locations, location)
-		slog.Info("Exporting database for instance", "database", database, "instance", instanceID, "location", location)
+		slog.Info("Exporting database for instance", "database", database, "instance", backupLocation.Instance, "location", location)
 
 		req := &sqladmin.InstancesExportRequest{
 			ExportContext: &sqladmin.ExportContext{
@@ -329,7 +325,7 @@ func (c *CloudSQL) ExportCloudSQLDatabase(databases []string, instanceID, bucket
 			},
 		}
 
-		op, err := c.sqlAdminSvc.Instances.Export(c.ProjectID, instanceID, req).Do()
+		op, err := c.sqlAdminSvc.Instances.Export(c.ProjectID, backupLocation.Instance, req).Do()
 		if err != nil {
 			return nil, err
 		}
@@ -530,10 +526,10 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 		password = string(secretVersion.Payload.Data)
 	}
 
-	backLocation := bakstorage.NewLocation(opts.File)
+	backupLocation := bakstorage.NewLocation(opts.File)
 
 	database := &sqladmin.Database{
-		Name: backLocation.Database,
+		Name: backupLocation.Database,
 	}
 
 	dbase, err := c.sqlAdminSvc.Databases.Get(c.ProjectID, dbinstance.Name, database.Name).Do()
@@ -556,9 +552,9 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 		slog.Info("Successfully created PostgreSQL instance database", "instance", dbinstance.Name, "database", database.Name)
 	}
 
-	reader, err := c.storageSvc.Bucket(backLocation.Bucket).Object(backLocation.UserLocation()).NewReader(c.ctx)
+	reader, err := c.storageSvc.Bucket(backupLocation.Bucket).Object(backupLocation.UserLocation()).NewReader(c.ctx)
 	if err != nil {
-		slog.Error("Failed to open file", "location", backLocation.UserLocation(), "error", err)
+		slog.Error("Failed to open file", "location", backupLocation.UserLocation(), "error", err)
 		return nil, err
 	}
 	defer reader.Close()
@@ -566,7 +562,7 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	// Read file contents into a string
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		slog.Error("Failed to read content from file", "location", backLocation.UserLocation(), "error", err)
+		slog.Error("Failed to read content from file", "location", backupLocation.UserLocation(), "error", err)
 		return nil, fmt.Errorf("failed to read file contents: %v", err)
 	}
 
@@ -662,12 +658,12 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	statsBackup := make(map[string]*CloudSQLStatistic)
 
 	object := c.storageSvc.
-		Bucket(backLocation.Bucket).
-		Object(backLocation.StatsLocation())
+		Bucket(backupLocation.Bucket).
+		Object(backupLocation.StatsLocation(database.Name))
 
 	_, err = object.Attrs(c.ctx)
 	if err != nil && err != storage.ErrObjectNotExist {
-		slog.Error("Failed to retrieve bucket object", "location", backLocation.StatsLocation(), "error", err)
+		slog.Error("Failed to retrieve bucket object", "location", backupLocation.StatsLocation(database.Name), "error", err)
 		return nil, err
 	}
 
@@ -676,7 +672,7 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	if err != storage.ErrObjectNotExist {
 		reader, err = object.NewReader(c.ctx)
 		if err != nil {
-			slog.Error("Failed to read user file", "location", backLocation.StatsLocation(), "error", err)
+			slog.Error("Failed to read user file", "location", backupLocation.StatsLocation(database.Name), "error", err)
 			return nil, err
 		}
 		defer reader.Close()
@@ -702,7 +698,7 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 			return nil, errors.Join(validationErrors...)
 		}
 	} else {
-		slog.Info("Stats file not found, skipping validation", "location", backLocation.StatsLocation())
+		slog.Info("Stats file not found, skipping validation", "location", backupLocation.StatsLocation(database.Name))
 	}
 
 	return &dbinstance.Name, nil

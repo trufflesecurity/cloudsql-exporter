@@ -36,8 +36,9 @@ func TestFileTemplate(t *testing.T) {
 			expected: Location{
 				Bucket:   "flink-backup-bucket-flink-platform-staging",
 				Path:     "dc-stock-level-service/cloudsql/",
-				Time:     "20240404T152957",
+				Instance: "dc-stock-level-service",
 				Database: "dc-stock-level-service",
+				Time:     "20240404T152957",
 			},
 		},
 		{
@@ -45,8 +46,19 @@ func TestFileTemplate(t *testing.T) {
 			expected: Location{
 				Bucket:   "flink-backup-bucket-flink-platform-staging",
 				Path:     "pricing/cloudsql/",
-				Time:     "20240404T152957",
+				Instance: "pricing",
 				Database: "pricing",
+				Time:     "20240404T152957",
+			},
+		},
+		{
+			file: "gs://flink-backup-bucket-flink-platform-staging/payment-service/cloudsql/payment-events-20240404T152957.sql.gz",
+			expected: Location{
+				Bucket:   "flink-backup-bucket-flink-platform-staging",
+				Path:     "payment-service/cloudsql/",
+				Instance: "payment-service",
+				Database: "payment-events",
+				Time:     "20240404T152957",
 			},
 		},
 	}
@@ -60,8 +72,8 @@ func TestUserLocation(t *testing.T) {
 	loc := Location{
 		Bucket:   "flink-backup-bucket-flink-platform-staging",
 		Path:     "pricing/cloudsql/",
-		Time:     "20240404T152957",
 		Database: "pricing",
+		Time:     "20240404T152957",
 	}
 
 	assert.Equal(t, "pricing/cloudsql/users-20240404T152957.txt", loc.UserLocation())
@@ -72,8 +84,20 @@ func TestStatsLocation(t *testing.T) {
 		Bucket:   "flink-backup-bucket-flink-platform-staging",
 		Path:     "pricing/cloudsql/",
 		Time:     "20240404T152957",
-		Database: "pricing",
 	}
 
-	assert.Equal(t, "pricing/cloudsql/stats-pricing-20240404T152957.yaml", loc.StatsLocation())
+	assert.Equal(t, "pricing/cloudsql/stats-pricing-20240404T152957.yaml", loc.StatsLocation("pricing"))
+}
+
+
+func TestDatabaseLocation(t *testing.T) {
+	loc := Location{
+		Bucket:   "flink-backup-bucket-flink-platform-staging",
+		Instance: "payment-service",
+		Time:     "20240404T152957",
+	}
+	assert.Equal(t, "gs://flink-backup-bucket-flink-platform-staging/payment-service/cloudsql/payment-events-20240404T152957.sql", loc.DatabaseLocation("payment-events"))
+
+	loc.Compression = false
+	assert.Equal(t, "gs://flink-backup-bucket-flink-platform-staging/payment-service/cloudsql/payment-events-20240404T152957.sql", loc.DatabaseLocation("payment-events"))
 }

@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"google.golang.org/api/sqladmin/v1"
 
 	"github.com/fr12k/cloudsql-exporter/pkg/cloudsql"
+	bakstorage "github.com/fr12k/cloudsql-exporter/pkg/storage"
 )
 
 type BackupOptions struct {
@@ -93,17 +95,15 @@ func Backup(opts *BackupOptions) (backupPaths []string, rerr error) {
 			}
 		}
 
-		var objectName string
-
-		backupTime := time.Now()
-
-		if opts.Compression {
-			objectName = backupTime.Format("20060102T150405") + ".sql.gz"
-		} else {
-			objectName = backupTime.Format("20060102T150405") + ".sql"
+		backupLocation := bakstorage.Location{
+			Bucket:      opts.Bucket,
+			Instance:    string(instance),
+			Path:        fmt.Sprintf("%s/cloudsql/", string(instance)),
+			Time:        time.Now().Format("20060102T150405"),
+			Compression: opts.Compression,
 		}
 
-		users, err := cls.ExportCloudSQLUser(string(instance), opts.Bucket, backupTime.Format("20060102T150405"))
+		users, err := cls.ExportCloudSQLUser(backupLocation)
 		if err != nil {
 			slog.Error("error export cloudsql user", "databases", databases, "instance", string(instance), "error", err)
 			return nil, err
@@ -112,7 +112,7 @@ func Backup(opts *BackupOptions) (backupPaths []string, rerr error) {
 		slog.Info("Exported cloudsql users", "users", users)
 
 		if opts.ExportStats {
-			stats, err := cls.ExportCloudSQLStatistics(databases, string(instance), opts.Bucket, backupTime.Format("20060102T150405"), opts.User, opts.Password)
+			stats, err := cls.ExportCloudSQLStatistics(backupLocation, databases, opts.User, opts.Password)
 			if err != nil {
 				slog.Error("error export cloudsql statistics", "databases", databases, "instance", string(instance), "error", err)
 				return nil, err
@@ -121,7 +121,7 @@ func Backup(opts *BackupOptions) (backupPaths []string, rerr error) {
 			slog.Info("Exported cloudsql statistics", "stats", stats)
 		}
 
-		locations, err := cls.ExportCloudSQLDatabase(databases, string(instance), opts.Bucket, objectName)
+		locations, err := cls.ExportCloudSQLDatabase(backupLocation, databases)
 		if err != nil {
 			slog.Error("error export cloudsql database", "databases", databases, "instance", string(instance), "error", err)
 			return nil, err
