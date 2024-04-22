@@ -39,7 +39,7 @@ type CloudSQL struct {
 	ctx         context.Context
 	sqlAdminSvc *sqladmin.Service
 	storageSvc  *storage.Client
-	secretSvc 	*secretmanager.Client
+	secretSvc   *secretmanager.Client
 }
 
 func NewCloudSQL(ctx context.Context, sqlAdminSvc *sqladmin.Service, storageSvc *storage.Client, secretSvc *secretmanager.Client, projectID string) *CloudSQL {
@@ -207,12 +207,11 @@ func (c *CloudSQL) ExportCloudSQLUser(instanceID, bucketName, backupTime string)
 }
 
 type CloudSQLStatistic struct {
-	FullTableName                string  `yaml:"full_table_name"`
-	TableSizeBytes               int64   `yaml:"table_size_bytes"`
-	TableSizeBytesWithoutIndexes int64   `yaml:"table_size_bytes_without_indexes"`
-	TotalSizeBytes               int64   `yaml:"total_size_bytes"`
-	//TODO change type to int64
-	RowCount                     int64 `yaml:"row_count"`
+	FullTableName                string `yaml:"full_table_name"`
+	TableSizeBytes               int64  `yaml:"table_size_bytes"`
+	TableSizeBytesWithoutIndexes int64  `yaml:"table_size_bytes_without_indexes"`
+	TotalSizeBytes               int64  `yaml:"total_size_bytes"`
+	RowCount                     int64  `yaml:"row_count"`
 }
 
 func (c *CloudSQL) GetCloudSQLStatistic(instanceID, user, password, database string) (map[string]*CloudSQLStatistic, error) {
@@ -268,7 +267,7 @@ ORDER BY
 		var rowCount float64
 		err := rows.Scan(&stat.FullTableName, &stat.TableSizeBytes, &stat.TableSizeBytesWithoutIndexes, &stat.TotalSizeBytes, &rowCount)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		stat.RowCount = int64(math.Round(rowCount))
 		stats[stat.FullTableName] = stat
@@ -289,8 +288,7 @@ func (c *CloudSQL) ExportCloudSQLStatistics(databases []string, instanceID, buck
 	for _, database := range databases {
 		dbStats, err := c.GetCloudSQLStatistic(instanceID, user, password, database)
 		if err != nil {
-			//TODO handle error
-			panic(err)
+			return nil, err
 		}
 
 		location := fmt.Sprintf("%s/cloudsql/stats-%s-%s.yaml", instanceID, database, backupTime)
@@ -361,7 +359,11 @@ func (c *CloudSQL) WaitForSQLOperation(timeout time.Duration, op *sqladmin.Opera
 				return err
 			}
 			if op.Error != nil {
-				return fmt.Errorf("operation failed: %v", op.Error)
+				var errors []string
+				for _, e := range op.Error.Errors {
+					errors = append(errors, e.Message)
+				}
+				return fmt.Errorf("operation failed: %s", errors)
 			}
 			if op.Status == "DONE" {
 				return nil
@@ -376,7 +378,7 @@ func generatePassword(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{},.<>?;:"
 
 	// Seed the random number generator
-	rand.Seed(time.Now().UnixNano())
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// Create a byte slice to store the password characters
 	password := make([]byte, length)
@@ -396,10 +398,68 @@ type RestoreOptions struct {
 	File     string
 	User     string
 
-	ValidateStats bool
-	StoreSecret	 bool
+	StoreSecret   bool
 
 	Version string
+}
+
+func (c *CloudSQL) savePassword(password string, dbInstance string) error {
+	// Create the secret
+	secret, err := c.secretSvc.GetSecret(c.ctx, &secretmanagerpb.GetSecretRequest{
+		Name: fmt.Sprintf("projects/%s/secrets/%s", c.ProjectID, strings.ToUpper(dbInstance)),
+	})
+
+	if err != nil /*&& err.(*apierror.APIError).Code != 404 */ {
+		slog.Error("Failed to get secret", "instance", dbInstance, "error", err)
+	}
+
+	if secret != nil {
+		err := c.secretSvc.DeleteSecret(c.ctx, &secretmanagerpb.DeleteSecretRequest{
+			Name: secret.Name,
+		})
+		if err != nil {
+			slog.Error("Failed to delete secret", "instance", dbInstance, "error", err)
+			return err
+		}
+		secret = nil
+	}
+
+	if secret == nil {
+		secret, err = c.secretSvc.CreateSecret(c.ctx, &secretmanagerpb.CreateSecretRequest{
+			Parent:   fmt.Sprintf("projects/%s", c.ProjectID),
+			SecretId: strings.ToUpper(dbInstance),
+			Secret: &secretmanagerpb.Secret{
+				Replication: &secretmanagerpb.Replication{
+					Replication: &secretmanagerpb.Replication_UserManaged_{
+						UserManaged: &secretmanagerpb.Replication_UserManaged{
+							Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
+								{
+									Location: "europe-west3",
+								},
+							},
+						},
+					},
+				},
+				Name: strings.ToUpper(dbInstance),
+			},
+		})
+
+		if err != nil {
+			slog.Error("Failed to create secret", "instance", dbInstance, "error", err)
+			return err
+		}
+		_, err := c.secretSvc.AddSecretVersion(c.ctx, &secretmanagerpb.AddSecretVersionRequest{
+			Parent: secret.Name,
+			Payload: &secretmanagerpb.SecretPayload{
+				Data: []byte(password),
+			},
+		})
+		if err != nil {
+			slog.Error("Failed to add secret version", "secret", secret.Name, "error", err)
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
@@ -428,8 +488,6 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 		DatabaseVersion: "POSTGRES_13", //TODO get version from backup file
 	}
 
-	//TODO store password in secret manager
-
 	slog.Info("Check if restore instance exists", "instance", dbinstance.Name)
 	db, err := c.sqlAdminSvc.Instances.Get(c.ProjectID, dbinstance.Name).Do()
 	if err != nil && err.(*googleapi.Error).Code != 404 {
@@ -438,58 +496,10 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	}
 
 	if db == nil {
-
-		secret, err := c.secretSvc.GetSecret(c.ctx, &secretmanagerpb.GetSecretRequest{
-			Name: fmt.Sprintf("projects/%s/secrets/%s", c.ProjectID, strings.ToUpper(dbinstance.Name)),
-		})
-
-		if err != nil /*&& err.(*apierror.APIError).Code != 404 */{
-			slog.Error("Failed to get secret", "instance", dbinstance.Name, "error", err)
-		}
-
-		if secret != nil {
-			err := c.secretSvc.DeleteSecret(c.ctx, &secretmanagerpb.DeleteSecretRequest{
-				Name: secret.Name,
-			})
+		// Store the password for the new created database instance if requested
+		if opts.StoreSecret {
+			err := c.savePassword(password, dbinstance.Name)
 			if err != nil {
-				slog.Error("Failed to delete secret", "instance", dbinstance.Name, "error", err)
-				return nil, err
-			}
-			secret = nil
-		}
-
-		if secret == nil {
-			secret, err = c.secretSvc.CreateSecret(c.ctx, &secretmanagerpb.CreateSecretRequest{
-				Parent:   fmt.Sprintf("projects/%s", c.ProjectID),
-				SecretId: strings.ToUpper(dbinstance.Name),
-				Secret: &secretmanagerpb.Secret{
-					Replication: &secretmanagerpb.Replication{
-						Replication: &secretmanagerpb.Replication_UserManaged_{
-							UserManaged: &secretmanagerpb.Replication_UserManaged{
-								Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
-									{
-										Location: "europe-west3",
-									},
-								},
-							},
-						},
-					},
-					Name: strings.ToUpper(dbinstance.Name),
-				},
-			})
-
-			if err != nil {
-				slog.Error("Failed to create secret", "instance", dbinstance.Name, "error", err)
-				return nil, err
-			}
-			_, err := c.secretSvc.AddSecretVersion(c.ctx, &secretmanagerpb.AddSecretVersionRequest{
-				Parent: secret.Name,
-				Payload: &secretmanagerpb.SecretPayload{
-					Data: []byte(password),
-				},
-			})
-			if err != nil {
-				slog.Error("Failed to add secret version", "secret", secret.Name, "error", err)
 				return nil, err
 			}
 		}
@@ -527,7 +537,7 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	}
 
 	dbase, err := c.sqlAdminSvc.Databases.Get(c.ProjectID, dbinstance.Name, database.Name).Do()
-	if err != nil {
+	if err != nil && err.(*googleapi.Error).Code != 404 {
 		slog.Error("Failed to get PostgreSQL instance database", "instance", dbinstance.Name, "database", database.Name, "error", err)
 	}
 
@@ -548,7 +558,7 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 
 	reader, err := c.storageSvc.Bucket(backLocation.Bucket).Object(backLocation.UserLocation()).NewReader(c.ctx)
 	if err != nil {
-		slog.Error("Failed to read user file", "location", backLocation.UserLocation(), "error", err)
+		slog.Error("Failed to open file", "location", backLocation.UserLocation(), "error", err)
 		return nil, err
 	}
 	defer reader.Close()
@@ -556,7 +566,8 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	// Read file contents into a string
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		panic(fmt.Errorf("failed to read file contents: %v", err))
+		slog.Error("Failed to read content from file", "location", backLocation.UserLocation(), "error", err)
+		return nil, fmt.Errorf("failed to read file contents: %v", err)
 	}
 
 	// Split file contents into an array of strings (assuming lines are separated by newlines)
@@ -619,9 +630,9 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 	// Import data from SQL file
 	importReq := &sqladmin.InstancesImportRequest{
 		ImportContext: &sqladmin.ImportContext{
-			Kind:     "sql#importContext",
-			Database: database.Name,
-			FileType: "SQL",
+			Kind:       "sql#importContext",
+			Database:   database.Name,
+			FileType:   "SQL",
 			ImportUser: opts.User,
 			Uri:        opts.File, // You can also use local file path here
 			//TODO check what bak import and export is capable of
@@ -650,27 +661,48 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 
 	statsBackup := make(map[string]*CloudSQLStatistic)
 
-	reader, err = c.storageSvc.Bucket(backLocation.Bucket).Object(backLocation.StatsLocation()).NewReader(c.ctx)
-	if err != nil {
-		slog.Error("Failed to read user file", "location", backLocation.UserLocation(), "error", err)
-		return nil, err
-	}
-	defer reader.Close()
+	object := c.storageSvc.
+		Bucket(backLocation.Bucket).
+		Object(backLocation.StatsLocation())
 
-	err = yaml.NewDecoder(reader).Decode(&statsBackup)
-	if err != nil {
-		slog.Error("Failed to decode stats", "error", err)
+	_, err = object.Attrs(c.ctx)
+	if err != nil && err != storage.ErrObjectNotExist {
+		slog.Error("Failed to retrieve bucket object", "location", backLocation.StatsLocation(), "error", err)
 		return nil, err
 	}
 
-	for key, value := range stats {
-		if _, ok := statsBackup[key]; !ok {
-			slog.Error("Stats not found", "key", key)
-			return nil, errors.New("Stats not found")
+	//Only check restore integrity when stats yaml file exists. If not, skip the check
+	//The stats will be created during the backup process if ExportStats is enabled
+	if err != storage.ErrObjectNotExist {
+		reader, err = object.NewReader(c.ctx)
+		if err != nil {
+			slog.Error("Failed to read user file", "location", backLocation.StatsLocation(), "error", err)
+			return nil, err
 		}
-		if value.RowCount != statsBackup[key].RowCount {
-			slog.Error("Row count mismatch", "key", key, "value", value.RowCount, "backup", statsBackup[key].RowCount)
+		defer reader.Close()
+
+		err = yaml.NewDecoder(reader).Decode(&statsBackup)
+		if err != nil {
+			slog.Error("Failed to decode stats", "error", err)
+			return nil, err
 		}
+
+		var validationErrors []error
+		for key, value := range stats {
+			if _, ok := statsBackup[key]; !ok {
+				slog.Error("Stats not found", "key", key)
+				return nil, errors.New("stats not found")
+			}
+			if value.RowCount != statsBackup[key].RowCount {
+				slog.Error("Row count mismatch", "key", key, "value", value.RowCount, "backup", statsBackup[key].RowCount)
+				validationErrors = append(validationErrors, fmt.Errorf("row count mismatch key: %s, value: %d, backup: %d", key, value.RowCount, statsBackup[key].RowCount))
+			}
+		}
+		if validationErrors != nil {
+			return nil, errors.Join(validationErrors...)
+		}
+	} else {
+		slog.Info("Stats file not found, skipping validation", "location", backLocation.StatsLocation())
 	}
 
 	return &dbinstance.Name, nil

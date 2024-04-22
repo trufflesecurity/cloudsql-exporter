@@ -38,7 +38,7 @@ func Restore(opts *cloudsql.RestoreOptions) ([]string, error) {
 
 	password, err := cls.Restore(opts)
 	if err != nil {
-		slog.Error("error validate cloudsql database", "instance", opts.Instance, "error", err)
+		slog.Error("error restore cloudsql database", "instance", opts.Instance, "error", err)
 		return nil, err
 	}
 

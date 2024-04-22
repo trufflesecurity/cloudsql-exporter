@@ -11,7 +11,7 @@ import (
 )
 
 type RestoreOptions struct {
-	File     string
+	File string
 }
 
 var restoreOpts = &RestoreOptions{}
@@ -19,8 +19,8 @@ var restoreOpts = &RestoreOptions{}
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
 	Short: "This export data from Cloud SQL instance to a GCS bucket.",
-	Long: `This export data from Cloud SQL instance to a GCS bucket.`,
-	RunE: execute,
+	Long:  `This export data from Cloud SQL instance to a GCS bucket.`,
+	RunE:  execute,
 }
 
 func init() {

@@ -10,12 +10,12 @@ import (
 )
 
 type BackupOptions struct {
-	Password string
+	ExportStats bool
+	Password    string
 
 	Compression           bool
 	EnsureIamBindings     bool
 	EnsureIamBindingsTemp bool
-	Validate              bool
 }
 
 var backupOpts = &BackupOptions{}
@@ -23,18 +23,20 @@ var backupOpts = &BackupOptions{}
 var backupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "This export data from Cloud SQL instance to a GCS bucket.",
-	Long: `This export data from Cloud SQL instance to a GCS bucket.`,
-	RunE: execute,
+	Long:  `This export data from Cloud SQL instance to a GCS bucket.`,
+	RunE:  execute,
 }
 
 func init() {
 	cmd.RootCmd.AddCommand(backupCmd)
-	cmd.AddRequiredFlag(backupCmd, &backupOpts.Password, "password", "Cloud SQL password")
 
-	backupCmd.Flags().BoolVar(&backupOpts.Compression, "compression", false, "Enable compression")
-	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindings, "ensure-iam-bindings", false, "Ensure IAM bindings")
-	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindingsTemp, "ensure-iam-bindings-temp", false, "Ensure IAM bindings temp")
-	backupCmd.Flags().BoolVar(&backupOpts.Validate, "validate", false, "Validate backup")
+	backupCmd.Flags().BoolVar(&backupOpts.ExportStats, "stats", false, "Extract tables statistics to be able to validate restored data integrity")
+	backupCmd.Flags().StringVar(&backupOpts.Password, "password", "", "Cloud SQL password for the user to connect to the database to export tables statistics")
+	backupCmd.MarkFlagsRequiredTogether("stats", "password")
+
+	backupCmd.Flags().BoolVar(&backupOpts.Compression, "compression", false, "Enable compression for the backup file")
+	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindings, "ensure-iam-bindings", false, "Ensure permanent IAM bindings for the Cloud SQL instance")
+	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindingsTemp, "ensure-iam-bindings-temp", false, "Ensure IAM bindings temp for the Cloud SQL instance temp ")
 }
 
 func execute(ccmd *cobra.Command, args []string) error {
@@ -51,12 +53,13 @@ func execute(ccmd *cobra.Command, args []string) error {
 		Project:  project,
 		Instance: instance,
 		User:     user,
-		Password: backupOpts.Password,
+
+		ExportStats: true,
+		Password:    backupOpts.Password,
 
 		Compression:           backupOpts.Compression,
 		EnsureIamBindings:     backupOpts.EnsureIamBindings,
 		EnsureIamBindingsTemp: backupOpts.EnsureIamBindingsTemp,
-		Validate:              backupOpts.Validate,
 	}
 
 	locations, err := backup.Backup(&opts)

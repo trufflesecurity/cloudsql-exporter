@@ -10,13 +10,13 @@ func TestDbFromFileName(t *testing.T) {
 	test := []struct {
 		file     string
 		expected string
-	} {
+	}{
 		{
-			file: "gs://flink-backup-bucket-flink-platform-staging/dc-stock-level-service/cloudsql/dc-stock-level-service-20240404T152957.sql.gz",
+			file:     "gs://flink-backup-bucket-flink-platform-staging/dc-stock-level-service/cloudsql/dc-stock-level-service-20240404T152957.sql.gz",
 			expected: "dc-stock-level-service",
 		},
 		{
-			file: "gs://flink-backup-bucket-flink-platform-staging/pricing/cloudsql/pricing-20240404T152957.sql.gz",
+			file:     "gs://flink-backup-bucket-flink-platform-staging/pricing/cloudsql/pricing-20240404T152957.sql.gz",
 			expected: "pricing",
 		},
 	}
@@ -30,22 +30,22 @@ func TestFileTemplate(t *testing.T) {
 	test := []struct {
 		file     string
 		expected Location
-	} {
+	}{
 		{
 			file: "gs://flink-backup-bucket-flink-platform-staging/dc-stock-level-service/cloudsql/dc-stock-level-service-20240404T152957.sql.gz",
-			expected: Location {
-				Bucket: "flink-backup-bucket-flink-platform-staging",
-				Path: "dc-stock-level-service/cloudsql/",
-				Time: "20240404T152957",
+			expected: Location{
+				Bucket:   "flink-backup-bucket-flink-platform-staging",
+				Path:     "dc-stock-level-service/cloudsql/",
+				Time:     "20240404T152957",
 				Database: "dc-stock-level-service",
 			},
 		},
 		{
 			file: "gs://flink-backup-bucket-flink-platform-staging/pricing/cloudsql/pricing-20240404T152957.sql.gz",
-			expected: Location {
-				Bucket: "flink-backup-bucket-flink-platform-staging",
-				Path: "pricing/cloudsql/",
-				Time: "20240404T152957",
+			expected: Location{
+				Bucket:   "flink-backup-bucket-flink-platform-staging",
+				Path:     "pricing/cloudsql/",
+				Time:     "20240404T152957",
 				Database: "pricing",
 			},
 		},
@@ -57,10 +57,10 @@ func TestFileTemplate(t *testing.T) {
 }
 
 func TestUserLocation(t *testing.T) {
-	loc := Location {
-		Bucket: "flink-backup-bucket-flink-platform-staging",
-		Path: "pricing/cloudsql/",
-		Time: "20240404T152957",
+	loc := Location{
+		Bucket:   "flink-backup-bucket-flink-platform-staging",
+		Path:     "pricing/cloudsql/",
+		Time:     "20240404T152957",
 		Database: "pricing",
 	}
 
@@ -68,10 +68,10 @@ func TestUserLocation(t *testing.T) {
 }
 
 func TestStatsLocation(t *testing.T) {
-	loc := Location {
-		Bucket: "flink-backup-bucket-flink-platform-staging",
-		Path: "pricing/cloudsql/",
-		Time: "20240404T152957",
+	loc := Location{
+		Bucket:   "flink-backup-bucket-flink-platform-staging",
+		Path:     "pricing/cloudsql/",
+		Time:     "20240404T152957",
 		Database: "pricing",
 	}
 

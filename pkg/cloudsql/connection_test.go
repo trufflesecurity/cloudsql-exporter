@@ -30,7 +30,8 @@ func TestNewConnection(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		pg.Shutdown(ctx)
+		err := pg.Shutdown(ctx)
+		assert.NoError(t, err)
 	})
 
 	cfg, err := pgx.ParseConfig(pg.ConnectionString())

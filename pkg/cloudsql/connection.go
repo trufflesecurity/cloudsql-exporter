@@ -29,7 +29,7 @@ func WithDialFunc(dialFunc pgconn.DialFunc) Option {
 	}
 }
 
-func (c Connection) Connect(connOpts... Option) (*sql.DB, error) {
+func (c Connection) Connect(connOpts ...Option) (*sql.DB, error) {
 	for _, opt := range connOpts {
 		opt(&c)
 	}
