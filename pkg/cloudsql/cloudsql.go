@@ -178,7 +178,7 @@ func (c *CloudSQL) ExportUsers(instanceID string) ([]*sqladmin.User, error) {
 }
 
 // ExportCloudSQLUser exports a Cloud SQL users to Google Cloud Storage bucket.
-func (c *CloudSQL) ExportCloudSQLUser(backupLocation bakstorage.Location,) ([]string, error) {
+func (c *CloudSQL) ExportCloudSQLUser(backupLocation bakstorage.Location) ([]string, error) {
 	slog.Info("Exporting users for instance", "instance", backupLocation.Instance, "location", backupLocation.UserLocation())
 
 	users, err := c.ExportUsers(backupLocation.Instance)
@@ -391,10 +391,11 @@ type RestoreOptions struct {
 	Bucket   string
 	Project  string
 	Instance string
-	File     string
 	User     string
 
-	StoreSecret   bool
+	File        string
+	Cleanup     bool
+	StoreSecret bool
 
 	Version string
 }
@@ -425,6 +426,12 @@ func (c *CloudSQL) savePassword(password string, dbInstance string) error {
 			Parent:   fmt.Sprintf("projects/%s", c.ProjectID),
 			SecretId: strings.ToUpper(dbInstance),
 			Secret: &secretmanagerpb.Secret{
+				Labels: map[string]string{
+					"service":  "cloudsql-exporter",
+					"kind":     "restore",
+					"env":      c.ProjectID,
+					"database": dbInstance,
+				},
 				Replication: &secretmanagerpb.Replication{
 					Replication: &secretmanagerpb.Replication_UserManaged_{
 						UserManaged: &secretmanagerpb.Replication_UserManaged{
@@ -477,8 +484,9 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 				QueryInsightsEnabled: true,
 			},
 			UserLabels: map[string]string{
-				"service": fmt.Sprintf("restore-%s", opts.Instance),
+				"service": "cloudsql-exporter",
 				"kind":    "restore",
+				"env":     opts.Project,
 			},
 		},
 		RootPassword:    password,
@@ -502,7 +510,7 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 		}
 
 		// Create the PostgreSQL instance
-		slog.Info("Create PostgreSQL instance", "instance", dbinstance.Name)
+		slog.Info("Create PostgreSQL instance this can take up to 10 or more minutes", "instance", dbinstance.Name)
 		operation, err := c.sqlAdminSvc.Instances.Insert(c.ProjectID, dbinstance).Context(c.ctx).Do()
 		if err != nil {
 			slog.Error("Failed to create PostgreSQL instance", "instance", dbinstance.Name, "error", err)
@@ -609,7 +617,7 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 		if err != nil {
 			slog.Error("Failed to remove role binding roles/storage.legacyBucketReader", "service_account", sqlAdminSvcAccount, "error", err)
 		}
-		err = c.AddRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, opts.Instance)
+		err = c.RemoveRoleBindingToGCSBucket(opts.Bucket, "roles/storage.objectViewer", sqlAdminSvcAccount, opts.Instance)
 		if err != nil {
 			slog.Error("Failed to remove role binding roles/storage.objectViewer", "service_account", sqlAdminSvcAccount, "error", err)
 		}
@@ -703,6 +711,19 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 		}
 		slog.Info("Restore integrity check passed", "stats", stats)
 
+		if opts.Cleanup {
+			slog.Info("Cleaning up restore PostgreSQL instance", "instance", dbinstance.Name)
+			operation, err := c.sqlAdminSvc.Instances.Delete(c.ProjectID, dbinstance.Name).Context(c.ctx).Do()
+			if err != nil {
+				slog.Error("Failed to delete restore PostgreSQL instance", "instance", dbinstance.Name, "error", err)
+				return nil, err
+			}
+			if err := c.WaitForSQLOperation(time.Minute*1, operation); err != nil {
+				slog.Error("Failed to delete restore PostgreSQL instance", "instance", dbinstance.Name, "error", err)
+				return nil, err
+			}
+			slog.Info("Successfully deleted restore PostgreSQL instance", "instance", dbinstance.Name)
+		}
 	} else {
 		slog.Info("Stats file not found, skipping integrity check", "location", backupLocation.StatsLocation(database.Name))
 	}

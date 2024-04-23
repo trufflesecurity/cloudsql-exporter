@@ -81,14 +81,13 @@ func TestUserLocation(t *testing.T) {
 
 func TestStatsLocation(t *testing.T) {
 	loc := Location{
-		Bucket:   "flink-backup-bucket-flink-platform-staging",
-		Path:     "pricing/cloudsql/",
-		Time:     "20240404T152957",
+		Bucket: "flink-backup-bucket-flink-platform-staging",
+		Path:   "pricing/cloudsql/",
+		Time:   "20240404T152957",
 	}
 
 	assert.Equal(t, "pricing/cloudsql/stats-pricing-20240404T152957.yaml", loc.StatsLocation("pricing"))
 }
-
 
 func TestDatabaseLocation(t *testing.T) {
 	loc := Location{

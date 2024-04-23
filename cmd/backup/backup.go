@@ -21,11 +21,11 @@ type BackupOptions struct {
 var backupOpts = &BackupOptions{}
 
 var backupCmd = &cobra.Command{
-	Use:   "backup",
+	Use:     "backup",
 	Example: "cloudsql-exporter backup --bucket=database-backup-bucket --project=f**********g --instance=db-instance-to-backup --ensure-iam-bindings-temp   --compression --user ******** --stats --password ${CLOUDSQL_PASSWORD}",
-	Short: "This export data from Cloud SQL instance to a GCS bucket.",
-	Long:  `This export data from Cloud SQL instance to a GCS bucket.`,
-	RunE:  execute,
+	Short:   "This export data from Cloud SQL instance to a GCS bucket.",
+	Long:    `This export data from Cloud SQL instance to a GCS bucket.`,
+	RunE:    execute,
 }
 
 func init() {
