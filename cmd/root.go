@@ -16,10 +16,10 @@ var RootCmd = &cobra.Command{
 }
 
 func init() {
-	AddRequiredPersistentFlagShort(RootCmd, "bucket", "b", "GCS bucket name")
-	AddRequiredPersistentFlagShort(RootCmd, "project", "p", "GCP project name")
-	AddRequiredPersistentFlagShort(RootCmd, "instance", "i", "Cloud SQL instance name")
-	AddRequiredPersistentFlag(RootCmd, "user", "Cloud SQL user")
+	AddRequiredPersistentFlagShort(RootCmd, "bucket", "b", "The GCP bucket name to export/import data to.")
+	AddRequiredPersistentFlagShort(RootCmd, "project", "p", "The GCP project name that contains the Cloud SQL instance.")
+	AddRequiredPersistentFlagShort(RootCmd, "instance", "i", "The GCP Cloud SQL instance name to export/import data from.")
+	RootCmd.PersistentFlags().String("user", "", "The Cloud SQL user to connect to the database.")
 
 	RootCmd.Version = version.BuildVersion
 }
@@ -35,14 +35,6 @@ func AddRequiredPersistentFlagShort(ccmd *cobra.Command, name, shorthand, usage 
 func AddRequiredFlag(ccmd *cobra.Command, ref *string, name, usage string) {
 	ccmd.Flags().StringVar(ref, name, "", usage)
 	err := ccmd.MarkFlagRequired(name)
-	if err != nil {
-		panic(err)
-	}
-}
-
-func AddRequiredPersistentFlag(ccmd *cobra.Command, name, usage string) {
-	ccmd.PersistentFlags().String(name, "", usage)
-	err := ccmd.MarkPersistentFlagRequired(name)
 	if err != nil {
 		panic(err)
 	}

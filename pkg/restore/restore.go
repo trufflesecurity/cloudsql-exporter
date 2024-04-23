@@ -42,7 +42,7 @@ func Restore(opts *cloudsql.RestoreOptions) ([]string, error) {
 		return nil, err
 	}
 
-	slog.Info("Backup complete", "backups", backupPaths, "password", *password)
+	slog.Info("Restore complete", "instance", *password)
 
 	return backupPaths, nil
 }

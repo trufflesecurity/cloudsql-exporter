@@ -459,6 +459,7 @@ func (c *CloudSQL) savePassword(password string, dbInstance string) error {
 }
 
 func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
+	//TODO remove the hard prefix of db instance with name restore-* this is to prevent any conflict with real database instances
 	// Define the database instance parameters
 	password := generatePassword(12)
 	dbinstance := &sqladmin.DatabaseInstance{
@@ -550,6 +551,9 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 			return nil, err
 		}
 		slog.Info("Successfully created PostgreSQL instance database", "instance", dbinstance.Name, "database", database.Name)
+	} else {
+		slog.Warn("Database already exists and to prevent any data loss restore stops here", "instance", dbinstance.Name, "database", database.Name)
+		return &dbinstance.Name, fmt.Errorf("database already exists")
 	}
 
 	reader, err := c.storageSvc.Bucket(backupLocation.Bucket).Object(backupLocation.UserLocation()).NewReader(c.ctx)
@@ -697,8 +701,10 @@ func (c *CloudSQL) Restore(opts *RestoreOptions) (*string, error) {
 		if validationErrors != nil {
 			return nil, errors.Join(validationErrors...)
 		}
+		slog.Info("Restore integrity check passed", "stats", stats)
+
 	} else {
-		slog.Info("Stats file not found, skipping validation", "location", backupLocation.StatsLocation(database.Name))
+		slog.Info("Stats file not found, skipping integrity check", "location", backupLocation.StatsLocation(database.Name))
 	}
 
 	return &dbinstance.Name, nil

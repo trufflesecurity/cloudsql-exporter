@@ -12,7 +12,6 @@ import (
 )
 
 func main() {
-
 	prettyHandler := prettylog.NewHandler(&slog.HandlerOptions{
 		Level:       slog.LevelInfo,
 		AddSource:   false,
