@@ -10,53 +10,54 @@ import (
 )
 
 type BackupOptions struct {
-	Password string
+	ExportStats bool
+	Password    string
 
 	Compression           bool
 	EnsureIamBindings     bool
 	EnsureIamBindingsTemp bool
-	Validate              bool
 }
 
 var backupOpts = &BackupOptions{}
 
 var backupCmd = &cobra.Command{
 	Use:   "backup",
+	Example: "cloudsql-exporter backup --bucket=database-backup-bucket --project=f**********g --instance=db-instance-to-backup --ensure-iam-bindings-temp   --compression --user ******** --stats --password ${CLOUDSQL_PASSWORD}",
 	Short: "This export data from Cloud SQL instance to a GCS bucket.",
-	Long: `This export data from Cloud SQL instance to a GCS bucket.`,
-	RunE: execute,
+	Long:  `This export data from Cloud SQL instance to a GCS bucket.`,
+	RunE:  execute,
 }
 
 func init() {
 	cmd.RootCmd.AddCommand(backupCmd)
-	cmd.AddRequiredFlag(backupCmd, &backupOpts.Password, "password", "Cloud SQL password")
 
-	backupCmd.Flags().BoolVar(&backupOpts.Compression, "compression", false, "Enable compression")
-	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindings, "ensure-iam-bindings", false, "Ensure IAM bindings")
-	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindingsTemp, "ensure-iam-bindings-temp", false, "Ensure IAM bindings temp")
-	backupCmd.Flags().BoolVar(&backupOpts.Validate, "validate", false, "Validate backup")
+	backupCmd.Flags().BoolVar(&backupOpts.ExportStats, "stats", false, "Extract tables statistics to be able to validate restored data integrity. (default: false)")
+	backupCmd.Flags().StringVar(&backupOpts.Password, "password", "", "Cloud SQL password for the user to connect to the database to export tables statistics. (required if stats flag is set)")
+	backupCmd.MarkFlagsRequiredTogether("stats", "user", "password")
+
+	backupCmd.Flags().BoolVar(&backupOpts.Compression, "compression", false, "Enable gz compression for the exported backup data file. (default: false)")
+	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindings, "ensure-iam-bindings", false, "Ensure needed IAM permission on the target bucket are set for the Cloud SQL instance service account. (default: false)")
+	backupCmd.Flags().BoolVar(&backupOpts.EnsureIamBindingsTemp, "ensure-iam-bindings-temp", false, "Ensure needed IAM permission on the target bucket are set and removed afterwards. (default: false)")
 }
 
 func execute(ccmd *cobra.Command, args []string) error {
-	fmt.Printf("Backup command %v+", backupOpts)
 	bucket := GetString(ccmd, "bucket")
 	project := GetString(ccmd, "project")
 	instance := GetString(ccmd, "instance")
 	user := GetString(ccmd, "user")
-
-	fmt.Printf("Backup command %v %v %v %v", bucket, project, instance, user)
 
 	opts := backup.BackupOptions{
 		Bucket:   bucket,
 		Project:  project,
 		Instance: instance,
 		User:     user,
-		Password: backupOpts.Password,
+
+		ExportStats: true,
+		Password:    backupOpts.Password,
 
 		Compression:           backupOpts.Compression,
 		EnsureIamBindings:     backupOpts.EnsureIamBindings,
 		EnsureIamBindingsTemp: backupOpts.EnsureIamBindingsTemp,
-		Validate:              backupOpts.Validate,
 	}
 
 	locations, err := backup.Backup(&opts)
