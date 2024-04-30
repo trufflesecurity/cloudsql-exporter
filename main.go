@@ -25,7 +25,7 @@ var (
 	instance          = app.Flag("instance", "Cloud SQL instance name, if not specified all within the project will be enumerated").String()
 	compression       = app.Flag("compression", "Enable compression for exported SQL files").Bool()
 	ensureIamBindings = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
-	fileType		  = app.Flag("fileType", "Type of file to export (SQL, SQL_FILE_TYPE_UNSPECIFIED, BAK, CSV) [Default SQL]").String()
+	fileType		  = app.Flag("fileType", "Type of file to export (SQL, SQL_FILE_TYPE_UNSPECIFIED, BAK, CSV) [Default SQL]").Default("SQL").String()
 )
 
 func main() {
@@ -73,18 +73,13 @@ func main() {
 			}
 		}
 
-		var fileType string
-		if !*fileType {
-			fileType = "SQL"
-		}
-
-		var objectName string = time.Now().Format(time.RFC3339Nano) + "." + strings.ToLower(fileType)
+		var objectName string = time.Now().Format(time.RFC3339Nano) + "." + strings.ToLower(*fileType)
 
 		if *compression {
 			objectName = objectName + ".gz"
 		}
 
-		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName, strings.ToUpper(fileType))
+		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName, strings.ToUpper(*fileType))
 		if err != nil {
 			log.Fatal(err)
 		}
