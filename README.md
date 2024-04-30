@@ -31,7 +31,7 @@ Flags:
   --ensure-iam-bindings  Ensure that the Cloud SQL service account has the
                          required IAM role binding to export and validate the
                          backup
-  --fileType             Type of file to export (SQL, SQL_FILE_TYPE_UNSPECIFIED, BAK, CSV)
+  --fileType             Type of file to export (SQL, SQL_FILE_TYPE_UNSPECIFIED, BAK, CSV) [Default SQL]
 ```
 
 ## Installation

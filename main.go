@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"time"
+	"strings"
 
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
@@ -24,7 +25,7 @@ var (
 	instance          = app.Flag("instance", "Cloud SQL instance name, if not specified all within the project will be enumerated").String()
 	compression       = app.Flag("compression", "Enable compression for exported SQL files").Bool()
 	ensureIamBindings = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the required IAM role binding to export and validate the backup").Bool()
-	fileType		  = app.Flag("fileType", "Type of file to export (SQL, SQL_FILE_TYPE_UNSPECIFIED, BAK, CSV)").String()
+	fileType		  = app.Flag("fileType", "Type of file to export (SQL, SQL_FILE_TYPE_UNSPECIFIED, BAK, CSV) [Default SQL]").String()
 )
 
 func main() {
@@ -72,15 +73,18 @@ func main() {
 			}
 		}
 
-		var objectName string
-
-		if *compression {
-			objectName = time.Now().Format(time.RFC3339Nano) + ".sql.gz"
-		} else {
-			objectName = time.Now().Format(time.RFC3339Nano) + ".sql"
+		var fileType string
+		if !*fileType {
+			fileType = "SQL"
 		}
 
-		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName, *fileType)
+		var objectName string = time.Now().Format(time.RFC3339Nano) + "." + strings.ToLower(fileType)
+
+		if *compression {
+			objectName = objectName + ".gz"
+		}
+
+		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName, strings.ToUpper(fileType))
 		if err != nil {
 			log.Fatal(err)
 		}
