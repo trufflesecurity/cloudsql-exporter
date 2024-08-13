@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	golang.org/x/oauth2 v0.22.0
-	google.golang.org/api v0.190.0
+	google.golang.org/api v0.191.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
