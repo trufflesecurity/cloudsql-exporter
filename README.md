@@ -17,7 +17,7 @@ Exporting your database to a separate Google Cloud Storage bucket, preferrably i
 
 ```bash
 $ cloudsql-exporter --help
-usage: cloudsql-backup --bucket=BUCKET --project=PROJECT [<flags>]
+usage: cloudsql-exporter --bucket=BUCKET --project=PROJECT [<flags>]
 
 Export Cloud SQL databases to Google Cloud Storage
 
@@ -31,6 +31,7 @@ Flags:
   --ensure-iam-bindings  Ensure that the Cloud SQL service account has the
                          required IAM role binding to export and validate the
                          backup
+  --fileType             Type of file to export (SQL, SQL_FILE_TYPE_UNSPECIFIED, BAK, CSV) [Default SQL]
 ```
 
 ## Installation
