@@ -24,8 +24,9 @@ func TestRestoreDatabase(t *testing.T) {
 		*bucket, *project, *instance, *database = savedBucket, savedProject, savedInstance, savedDatabase
 		*backup, *yes, *ensureIamBindings = savedBackup, savedYes, savedIAM
 	})
-	const oldBackup = "proj/inst/db/2026-01-01.sql"
-	const newBackup = "proj/inst/db/2026-02-01.sql.gz"
+	// Names deliberately sort opposite to creation time.
+	const oldBackup = "proj/inst/db/2026-02-01.sql"
+	const newBackup = "proj/inst/db/2026-01-01.sql.gz"
 	const confirmation = "RESTORE gs://backups/" + newBackup + " INTO proj/inst/db\n"
 	for _, tc := range []struct {
 		name, object, input, failure, wantObject string
