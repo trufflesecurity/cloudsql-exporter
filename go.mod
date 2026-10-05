@@ -1,6 +1,6 @@
 module github.com/trufflesecurity/cloudsql-exporter
 
-go 1.19
+go 1.23.0
 
 require (
 	golang.org/x/oauth2 v0.26.0
