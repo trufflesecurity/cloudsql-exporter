@@ -28,15 +28,20 @@ Flags:
   --project=PROJECT      GCP project ID
   --instance=INSTANCE    Cloud SQL instance name, if not specified all within
                          the project will be enumerated
+  --compression          Enable compression for exported SQL files
+  --fileType="SQL"       Export format: SQL for MySQL/PostgreSQL or BAK for SQL
+                         Server
   --ensure-iam-bindings  Ensure that the Cloud SQL service account has the
                          bucket IAM roles needed to export or restore
-  --compression          Enable compression for exported SQL files
-  --fileType=SQL         Export format: SQL for MySQL/PostgreSQL or BAK for SQL Server
-  --restore              Restore a SQL backup (requires --instance and --database)
-  --database=DATABASE    Destination database for restoration; must already exist
-  --backup=BACKUP        GCS object name to restore, bypassing the backup selector
-  --yes                  Skip written restoration confirmation
-  --version              Show application version
+  --restore              Restore a SQL backup (requires --instance and
+                         --database)
+  --database=DATABASE    Destination database for restoration; must already
+                         exist
+  --backup=BACKUP        GCS object name to restore, bypassing the backup
+                         selector (requires --restore)
+  --yes                  Skip written restoration confirmation (requires
+                         --restore)
+  --version              Show application version.
 ```
 
 ### Export a backup
