@@ -17,6 +17,97 @@ import (
 	"google.golang.org/api/storage/v1"
 )
 
+func TestValidateOptions(t *testing.T) {
+	savedFormat, savedInstance, savedDatabase, savedBackup := *fileType, *instance, *database, *backup
+	savedRestore, savedCompression, savedYes := *restore, *compression, *yes
+	t.Cleanup(func() {
+		*fileType, *instance, *database, *backup = savedFormat, savedInstance, savedDatabase, savedBackup
+		*restore, *compression, *yes = savedRestore, savedCompression, savedYes
+	})
+	for _, tc := range []struct {
+		name, format, inst, db, object, wantError string
+		restoring, compressed, skipConfirmation   bool
+	}{
+		{name: "default SQL", format: "SQL"},
+		{name: "case-insensitive SQL", format: "sQl", compressed: true},
+		{name: "case-insensitive BAK", format: "bak"},
+		{name: "CSV needs a query", format: "CSV", wantError: "--fileType must be SQL or BAK"},
+		{name: "unspecified format", format: "SQL_FILE_TYPE_UNSPECIFIED", wantError: "--fileType must be SQL or BAK"},
+		{name: "invalid format", format: "../backup", wantError: "--fileType must be SQL or BAK"},
+		{name: "empty format", wantError: "--fileType must be SQL or BAK"},
+		{name: "BAK is not gzip", format: "BAK", compressed: true, wantError: "--compression is supported only for SQL exports"},
+		{name: "SQL restore", format: "SQL", restoring: true, inst: "inst", db: "db"},
+		{name: "missing restore instance", format: "SQL", restoring: true, db: "db", wantError: "--restore requires --instance and --database"},
+		{name: "missing restore database", format: "SQL", restoring: true, inst: "inst", wantError: "--restore requires --instance and --database"},
+		{name: "BAK restore is unsupported", format: "BAK", restoring: true, inst: "inst", db: "db", wantError: "apply only to exports"},
+		{name: "restore with compression", format: "SQL", restoring: true, compressed: true, inst: "inst", db: "db", wantError: "apply only to exports"},
+		{name: "export with restore backup", format: "SQL", object: "backup.sql", wantError: "require --restore"},
+		{name: "export with restore database", format: "SQL", db: "db", wantError: "require --restore"},
+		{name: "export with yes", format: "SQL", skipConfirmation: true, wantError: "require --restore"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			*fileType, *instance, *database, *backup = tc.format, tc.inst, tc.db, tc.object
+			*restore, *compression, *yes = tc.restoring, tc.compressed, tc.skipConfirmation
+			err := validateOptions()
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("validation error = %v, want %q", err, tc.wantError)
+				}
+			} else if err != nil || *fileType != strings.ToUpper(tc.format) {
+				t.Fatalf("format = %q, error = %v", *fileType, err)
+			}
+		})
+	}
+}
+
+func TestExportFileTypes(t *testing.T) {
+	for _, format := range []string{"SQL", "BAK"} {
+		t.Run(format, func(t *testing.T) {
+			var exported []string
+			object := "backup." + strings.ToLower(format)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != "POST" || r.URL.Path != "/v1/projects/proj/instances/inst/export" {
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+				}
+				var req sqladmin.InstancesExportRequest
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Error(err)
+				}
+				if req.ExportContext == nil || len(req.ExportContext.Databases) != 1 {
+					t.Error("export must name exactly one database")
+					http.Error(w, "invalid export", http.StatusBadRequest)
+					return
+				}
+				db := req.ExportContext.Databases[0]
+				exported = append(exported, db)
+				if req.ExportContext.FileType != format || req.ExportContext.Uri != "gs://backups/proj/inst/"+db+"/"+object {
+					t.Errorf("wrong export context: %+v", req.ExportContext)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if err := json.NewEncoder(w).Encode(sqladmin.Operation{Name: "export-op", Status: "DONE"}); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer server.Close()
+			svc, err := sqladmin.NewService(context.Background(), option.WithEndpoint(server.URL+"/"), option.WithoutAuthentication())
+			if err != nil {
+				t.Fatal(err)
+			}
+			databases := []string{"master", "model", "MSDB", "tempdb", "app"}
+			if err := cloudsql.ExportCloudSQLDatabase(context.Background(), svc, databases, "proj", "inst", "backups", object, format); err != nil {
+				t.Fatal(err)
+			}
+			want := strings.Join(databases, ",")
+			if format == "BAK" {
+				want = "app"
+			}
+			if strings.Join(exported, ",") != want {
+				t.Fatalf("exported databases = %v, want %s", exported, want)
+			}
+		})
+	}
+}
+
 func TestRestoreDatabase(t *testing.T) {
 	savedBucket, savedProject, savedInstance, savedDatabase := *bucket, *project, *instance, *database
 	savedBackup, savedYes, savedIAM := *backup, *yes, *ensureIamBindings

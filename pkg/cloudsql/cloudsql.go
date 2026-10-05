@@ -128,13 +128,20 @@ func ListDatabasesForCloudSQLInstance(ctx context.Context, sqlAdminSvc *sqladmin
 }
 
 // ExportCloudSQLDatabase exports a Cloud SQL database to a Google Cloud Storage bucket.
-func ExportCloudSQLDatabase(ctx context.Context, sqlAdminSvc *sqladmin.Service, databases []string, projectID, instanceID, bucketName, objectName string) error {
+func ExportCloudSQLDatabase(ctx context.Context, sqlAdminSvc *sqladmin.Service, databases []string, projectID, instanceID, bucketName, objectName, fileType string) error {
 	for _, database := range databases {
+		if fileType == "BAK" {
+			switch strings.ToLower(database) {
+			case "master", "model", "msdb", "tempdb":
+				log.Printf("Skipping SQL Server system database %s", database)
+				continue
+			}
+		}
 		log.Printf("Exporting database %s for instance %s", database, instanceID)
 
 		req := &sqladmin.InstancesExportRequest{
 			ExportContext: &sqladmin.ExportContext{
-				FileType:  "SQL",
+				FileType:  fileType,
 				Kind:      "sql#exportContext",
 				Databases: []string{database},
 				Uri:       fmt.Sprintf("gs://%s/%s/%s/%s/%s", bucketName, projectID, instanceID, database, objectName),

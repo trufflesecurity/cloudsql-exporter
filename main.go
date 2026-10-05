@@ -22,12 +22,13 @@ import (
 )
 
 var (
-	app = kingpin.New("cloudsql-backup", "Export or restore Cloud SQL databases using Google Cloud Storage")
+	app = kingpin.New("cloudsql-exporter", "Export or restore Cloud SQL databases using Google Cloud Storage")
 
 	bucket            = app.Flag("bucket", "Google Cloud Storage bucket name").Required().String()
 	project           = app.Flag("project", "GCP project ID").Required().String()
 	instance          = app.Flag("instance", "Cloud SQL instance name, if not specified all within the project will be enumerated").String()
 	compression       = app.Flag("compression", "Enable compression for exported SQL files").Bool()
+	fileType          = app.Flag("fileType", "Export format: SQL for MySQL/PostgreSQL or BAK for SQL Server").Default("SQL").String()
 	ensureIamBindings = app.Flag("ensure-iam-bindings", "Ensure that the Cloud SQL service account has the bucket IAM roles needed to export or restore").Bool()
 	restore           = app.Flag("restore", "Restore a SQL backup (requires --instance and --database)").Bool()
 	database          = app.Flag("database", "Destination database for restoration; must already exist").String()
@@ -39,17 +40,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	kingpin.MustParse(app.Parse(os.Args[1:]))
 	app.Version("cloudsql-exporter " + version.BuildVersion)
-	if *restore {
-		if *instance == "" || *database == "" {
-			log.Fatal("--restore requires --instance and --database")
-		}
-		if *compression {
-			log.Fatal("--compression applies only to exports")
-		}
-	} else if *backup != "" || *database != "" || *yes {
-		log.Fatal("--backup, --database and --yes require --restore")
+	kingpin.MustParse(app.Parse(os.Args[1:]))
+	if err := validateOptions(); err != nil {
+		log.Fatal(err)
 	}
 
 	hc, err := google.DefaultClient(ctx, sqladmin.SqlserviceAdminScope, storage.DevstorageFullControlScope)
@@ -98,15 +92,12 @@ func main() {
 			}
 		}
 
-		var objectName string
-
+		objectName := time.Now().Format(time.RFC3339Nano) + "." + strings.ToLower(*fileType)
 		if *compression {
-			objectName = time.Now().Format(time.RFC3339Nano) + ".sql.gz"
-		} else {
-			objectName = time.Now().Format(time.RFC3339Nano) + ".sql"
+			objectName += ".gz"
 		}
 
-		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName)
+		err := cloudsql.ExportCloudSQLDatabase(ctx, sqlAdminSvc, databases, *project, string(instance), *bucket, objectName, *fileType)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -114,6 +105,27 @@ func main() {
 
 	log.Println("Backup complete")
 
+}
+
+func validateOptions() error {
+	*fileType = strings.ToUpper(*fileType)
+	if *fileType != "SQL" && *fileType != "BAK" {
+		return fmt.Errorf("--fileType must be SQL or BAK")
+	}
+	if *restore {
+		if *instance == "" || *database == "" {
+			return fmt.Errorf("--restore requires --instance and --database")
+		}
+		if *compression || *fileType != "SQL" {
+			return fmt.Errorf("--compression and --fileType BAK apply only to exports")
+		}
+	} else if *backup != "" || *database != "" || *yes {
+		return fmt.Errorf("--backup, --database and --yes require --restore")
+	}
+	if *compression && *fileType == "BAK" {
+		return fmt.Errorf("--compression is supported only for SQL exports")
+	}
+	return nil
 }
 
 func restoreDatabase(ctx context.Context, sqlAdminSvc *sqladmin.Service, storageSvc *storage.Service, input io.Reader, output io.Writer) error {

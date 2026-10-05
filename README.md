@@ -1,6 +1,6 @@
 # cloudsql-exporter
 
-cloudsql-exporter automatically exports CloudSQL databases in a given project to a GCS bucket and can restore those SQL dumps.
+cloudsql-exporter exports Cloud SQL databases to a Google Cloud Storage bucket as SQL dumps (MySQL/PostgreSQL) or BAK files (SQL Server), and can restore the SQL dumps.
 It supports automatic enumeration of CloudSQL instances and their databases, and can even ensure the correct IAM role bindings are in place for a successful export.
 
 ![Demo](demo.svg)
@@ -17,7 +17,7 @@ Exporting your database to a separate Google Cloud Storage bucket, preferrably i
 
 ```bash
 $ cloudsql-exporter --help
-usage: cloudsql-backup --bucket=BUCKET --project=PROJECT [<flags>]
+usage: cloudsql-exporter --bucket=BUCKET --project=PROJECT [<flags>]
 
 Export or restore Cloud SQL databases using Google Cloud Storage
 
@@ -28,14 +28,47 @@ Flags:
   --project=PROJECT      GCP project ID
   --instance=INSTANCE    Cloud SQL instance name, if not specified all within
                          the project will be enumerated
+  --compression          Enable compression for exported SQL files
+  --fileType="SQL"       Export format: SQL for MySQL/PostgreSQL or BAK for SQL
+                         Server
   --ensure-iam-bindings  Ensure that the Cloud SQL service account has the
                          bucket IAM roles needed to export or restore
-  --compression          Enable compression for exported SQL files
-  --restore              Restore a SQL backup (requires --instance and --database)
-  --database=DATABASE    Destination database for restoration; must already exist
-  --backup=BACKUP        GCS object name to restore, bypassing the backup selector
-  --yes                  Skip written restoration confirmation
+  --restore              Restore a SQL backup (requires --instance and
+                         --database)
+  --database=DATABASE    Destination database for restoration; must already
+                         exist
+  --backup=BACKUP        GCS object name to restore, bypassing the backup
+                         selector (requires --restore)
+  --yes                  Skip written restoration confirmation (requires
+                         --restore)
+  --version              Show application version.
 ```
+
+### Export a backup
+
+SQL is the default export format for MySQL and PostgreSQL. Add `--compression`
+to create `.sql.gz` dumps:
+
+```bash
+cloudsql-exporter --bucket my-cloudsql-backups --project my-project \
+  --instance my-instance --compression --ensure-iam-bindings
+```
+
+For SQL Server, select BAK explicitly:
+
+```bash
+cloudsql-exporter --bucket my-cloudsql-backups --project my-project \
+  --instance my-sqlserver-instance --fileType BAK --ensure-iam-bindings
+```
+
+Format names are case-insensitive. Objects use the
+`PROJECT/INSTANCE/DATABASE/TIMESTAMP.sql[.gz]` or `TIMESTAMP.bak` layout.
+BAK export skips SQL Server's `master`, `model`, `msdb`, and `tempdb` system databases.
+`--compression` applies only to SQL exports. CSV and unspecified formats are rejected;
+CSV exports require query options that this CLI does not provide.
+Use `--instance` to select an instance with the matching database engine.
+The [Cloud SQL export API](https://cloud.google.com/sql/docs/sqlserver/admin-api/rest/v1/operations#ExportContext)
+defines the format requirements.
 
 ### Restore a backup
 
@@ -44,6 +77,8 @@ cloudsql-exporter --restore --bucket my-cloudsql-backups --project my-project \
   --instance my-instance --database my-database
 ```
 
+Restoration supports MySQL/PostgreSQL SQL dumps only; BAK restoration is not supported.
+The `--fileType` option controls exports and does not change the restore format.
 Restoration lists `.sql` and `.sql.gz` objects under `PROJECT/INSTANCE/DATABASE/`
 in the bucket, ordered by creation time, newest first. Enter the number of the
 backup to restore, then type the full `RESTORE gs://BUCKET/OBJECT INTO PROJECT/INSTANCE/DATABASE`
@@ -91,8 +126,25 @@ the operation status before retrying.
 ## Installation
 ### 1. Compile with Go
 
+Requires Go 1.25 or newer. To install the latest merged code, including changes
+that have not been released yet:
+
+```bash
+go install github.com/trufflesecurity/cloudsql-exporter@main
 ```
-go install github.com/trufflesecurity/cloudsql-exporter
+
+Use `@latest` instead of `@main` to install the latest tagged release. To build
+from a local checkout:
+
+```bash
+go install .
+```
+
+The binary is installed in `GOBIN`, or `$(go env GOPATH)/bin` when `GOBIN` is unset.
+Add that directory to your `PATH` and verify the flags:
+
+```bash
+cloudsql-exporter --help
 ```
 
 ### 2. [Release binaries](https://github.com/trufflesecurity/cloudsql-exporter/releases)
