@@ -29,8 +29,7 @@ Flags:
   --instance=INSTANCE    Cloud SQL instance name, if not specified all within
                          the project will be enumerated
   --ensure-iam-bindings  Ensure that the Cloud SQL service account has the
-                         required IAM role binding to export and validate the
-                         backup
+                         bucket IAM roles needed to export or restore
   --compression          Enable compression for exported SQL files
   --restore              Restore a SQL backup (requires --instance and --database)
   --database=DATABASE    Destination database for restoration; must already exist
