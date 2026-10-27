@@ -46,7 +46,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	hc, err := google.DefaultClient(ctx, sqladmin.SqlserviceAdminScope, storage.DevstorageFullControlScope)
+	// Cloud SQL rejects Instances.Export with ACCESS_TOKEN_SCOPE_INSUFFICIENT when
+	// the token only carries sqlservice.admin, which is what the metadata server
+	// issues on Cloud Run, GKE and GCE. cloud-platform covers both APIs.
+	hc, err := google.DefaultClient(ctx, sqladmin.CloudPlatformScope)
 	if err != nil {
 		log.Fatal(err)
 	}
