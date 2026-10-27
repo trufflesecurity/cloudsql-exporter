@@ -11,11 +11,15 @@ builds:
     - amd64
     - arm64
 dockers:
+  # buildx attaches provenance attestations by default, which turns each
+  # per-arch image into a manifest list. docker manifest create then refuses
+  # to nest it in the multi-arch manifest below.
   - image_templates: ["trufflesecurity/{{ .ProjectName }}:{{ .Version }}-amd64"]
     dockerfile: Dockerfile.goreleaser
     use: buildx
     build_flag_templates:
     - --platform=linux/amd64
+    - --provenance=false
     - --label=org.opencontainers.image.title={{ .ProjectName }}
     - --label=org.opencontainers.image.description={{ .ProjectName }}
     - --label=org.opencontainers.image.url=https://github.com/trufflesecurity/{{ .ProjectName }}
@@ -29,6 +33,7 @@ dockers:
     use: buildx
     build_flag_templates:
     - --platform=linux/arm64/v8
+    - --provenance=false
     - --label=org.opencontainers.image.title={{ .ProjectName }}
     - --label=org.opencontainers.image.description={{ .ProjectName }}
     - --label=org.opencontainers.image.url=https://github.com/trufflesecurity/{{ .ProjectName }}
@@ -41,6 +46,7 @@ dockers:
     use: buildx
     build_flag_templates:
     - --platform=linux/amd64
+    - --provenance=false
     - --label=org.opencontainers.image.title={{ .ProjectName }}
     - --label=org.opencontainers.image.description={{ .ProjectName }}
     - --label=org.opencontainers.image.url=https://github.com/trufflesecurity/{{ .ProjectName }}
@@ -54,6 +60,7 @@ dockers:
     use: buildx
     build_flag_templates:
     - --platform=linux/arm64/v8
+    - --provenance=false
     - --label=org.opencontainers.image.title={{ .ProjectName }}
     - --label=org.opencontainers.image.description={{ .ProjectName }}
     - --label=org.opencontainers.image.url=https://github.com/trufflesecurity/{{ .ProjectName }}
